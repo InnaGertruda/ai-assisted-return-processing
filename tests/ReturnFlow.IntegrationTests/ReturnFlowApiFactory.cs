@@ -42,7 +42,7 @@ public sealed class ReturnFlowApiFactory : WebApplicationFactory<Program>
             {
                 ["ConnectionStrings:ReturnFlow"] =
                     $"Data Source={_databasePath};Foreign Keys=True;Pooling=False",
-                ["Demo:SessionLifetimeMinutes"] = "120",
+                ["RETURNFLOW_SESSION_LIFETIME_MINUTES"] = "120",
             });
         });
 

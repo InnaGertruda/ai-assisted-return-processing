@@ -6,22 +6,21 @@ using ReturnFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("ReturnFlow")
     ?? throw new InvalidOperationException("Connection string 'ReturnFlow' is required.");
-var sessionLifetimeMinutes = int.TryParse(
-    builder.Configuration["Demo:SessionLifetimeMinutes"],
-    out var configuredLifetimeMinutes)
-    ? configuredLifetimeMinutes
-    : 120;
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDemoSessionIdGenerator, GuidDemoSessionIdGenerator>();
+builder.Services.AddSingleton(serviceProvider =>
+    DemoSessionRuntimeSettings.FromConfiguration(
+        serviceProvider.GetRequiredService<IConfiguration>()));
 builder.Services.AddReturnFlowInfrastructure(connectionString);
 builder.Services.AddScoped(serviceProvider => new DemoSessionService(
     serviceProvider.GetRequiredService<IDemoDataStore>(),
     serviceProvider.GetRequiredService<IDemoSessionIdGenerator>(),
     serviceProvider.GetRequiredService<TimeProvider>(),
-    TimeSpan.FromMinutes(sessionLifetimeMinutes)));
+    serviceProvider.GetRequiredService<DemoSessionRuntimeSettings>().Lifetime));
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<DemoSessionRuntimeSettings>();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

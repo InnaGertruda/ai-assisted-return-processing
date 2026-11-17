@@ -19,6 +19,8 @@ Start the API from the repository root:
 dotnet run --project src/ReturnFlow.Api
 ```
 
+Before starting locally, use **Manage User Secrets** on the `ReturnFlow.Api` project and assign `RETURNFLOW_SESSION_LIFETIME_MINUTES` an integer from 1 through 1440. User Secret values are stored outside the repository. On a deployed server, provide the same key through a server-side environment variable or secret store. `.env.example` documents required names only and intentionally contains no configured values.
+
 The API listens on `http://localhost:5080` by default, applies the versioned SQLite schema, and creates `./data/returnflow.db` on first start. The database and its WAL sidecars are ignored by Git. Check the API with:
 
 ```powershell
@@ -39,7 +41,7 @@ Invoke-RestMethod "http://localhost:5080/api/demo/sessions/$($session.sessionId)
 Invoke-RestMethod -Method Post "http://localhost:5080/api/demo/sessions/$($session.sessionId)/reset"
 ```
 
-S01 reports three purchased lamps, one active allocated unit, zero completed consumed units, and two available units. Session IDs are opaque; every order/case read and reset is scoped to its session. Sessions expire after 120 minutes by default (`Demo:SessionLifetimeMinutes`).
+S01 reports three purchased lamps, one active allocated unit, zero completed consumed units, and two available units. Session IDs are opaque; every order/case read and reset is scoped to its session. Session lifetime is controlled only by the backend environment variable `RETURNFLOW_SESSION_LIFETIME_MINUTES`; startup fails unless it is an integer from 1 through 1440.
 
 In a second terminal, install and start the frontend:
 
