@@ -18,6 +18,7 @@ builder.Services.AddScoped(serviceProvider => new DemoSessionService(
     serviceProvider.GetRequiredService<IDemoSessionIdGenerator>(),
     serviceProvider.GetRequiredService<TimeProvider>(),
     serviceProvider.GetRequiredService<DemoSessionRuntimeSettings>().Lifetime));
+builder.Services.AddScoped<ReturnInterpretationPipeline>();
 
 var app = builder.Build();
 _ = app.Services.GetRequiredService<DemoSessionRuntimeSettings>();

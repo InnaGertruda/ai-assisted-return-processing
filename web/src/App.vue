@@ -1,6 +1,10 @@
-<script setup lang="ts">
+<script setup>
+import { ref } from 'vue'
 import AiExecutionInspector from './features/ai-inspector/AiExecutionInspector.vue'
 import ReturnSimulator from './features/return-simulator/ReturnSimulator.vue'
+
+/** @type {import('vue').Ref<Record<string, any> | undefined>} */
+const trace = ref(undefined)
 </script>
 
 <template>
@@ -9,7 +13,7 @@ import ReturnSimulator from './features/return-simulator/ReturnSimulator.vue'
       <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
         <a href="#main" class="font-semibold tracking-tight text-ink">ReturnFlow</a>
         <span class="rounded-full border border-moss/15 bg-limewash/45 px-3 py-1 text-xs font-medium text-moss">
-          Architecture demo · AI-1
+          Architecture demo · AI-2 · Replay
         </span>
       </div>
     </header>
@@ -21,14 +25,14 @@ import ReturnSimulator from './features/return-simulator/ReturnSimulator.vue'
           See the boundary between an AI proposal and a trusted decision.
         </h1>
         <p class="mt-5 max-w-2xl text-base leading-7 text-ink/65">
-          Fictional, session-isolated order data now exists behind the API. There is still no AI run and no new
-          return is created; later stages will make every verification step inspectable before any state change.
+          Run a fixed Replay scenario to inspect an untrusted proposal, independent verification, and deterministic
+          preflight. AI-2 never creates a return case: every result is explicitly not committed.
         </p>
       </section>
 
       <div class="mt-10 grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-        <ReturnSimulator />
-        <AiExecutionInspector />
+        <ReturnSimulator @trace="trace = $event" />
+        <AiExecutionInspector :trace="trace" />
       </div>
     </main>
   </div>

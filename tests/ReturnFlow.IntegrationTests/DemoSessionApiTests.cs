@@ -42,9 +42,52 @@ public sealed class DemoSessionApiTests : IClassFixture<ReturnFlowApiFactory>
     {
         var scenarios = await _client.GetFromJsonAsync<DemoScenarioSummary[]>(
             "/api/demo/scenarios");
-        var scenario = Assert.Single(scenarios!);
+        Assert.Equal(8, scenarios!.Length);
+        var scenario = Assert.Single(scenarios, x => x.Id == "S01");
         Assert.Equal("S01", scenario.Id);
         Assert.Equal("1.0", scenario.FixtureVersion);
+        Assert.Equal("I want to return one more lamp.", scenario.Message);
+        Assert.Equal("EligibleForCommit", scenario.ExpectedOutcome);
+        Assert.Contains("will not create", scenario.ExpectedExplanation);
+        Assert.Equal("RF-1050", scenario.Order.DisplayNumber);
+        var previewItem = Assert.Single(scenario.Order.Items);
+        Assert.Equal("Arc floor lamp", previewItem.ProductName);
+        Assert.Equal(3, previewItem.PurchasedQuantity);
+        Assert.Equal(1, previewItem.ActiveAllocatedQuantity);
+        Assert.Equal(2, previewItem.AvailableQuantity);
+
+        Assert.All(scenarios, item =>
+        {
+            Assert.NotEmpty(item.Message);
+            Assert.NotEmpty(item.ExpectedOutcome);
+            Assert.NotEmpty(item.ExpectedExplanation);
+            Assert.NotEmpty(item.Order.Items);
+        });
+
+        foreach (var catalogScenario in scenarios)
+        {
+            var sessionResponse = await _client.PostAsJsonAsync(
+                "/api/demo/sessions",
+                new { scenarioId = catalogScenario.Id });
+            sessionResponse.EnsureSuccessStatusCode();
+            var createdSession = await sessionResponse.Content.ReadFromJsonAsync<DemoSessionSnapshot>();
+
+            Assert.NotNull(createdSession);
+            Assert.Equal(catalogScenario.Order.DisplayNumber, createdSession.Order.DisplayNumber);
+            Assert.Equal(catalogScenario.Order.Items.Count, createdSession.Order.Items.Count);
+
+            foreach (var preview in catalogScenario.Order.Items)
+            {
+                var createdItem = Assert.Single(
+                    createdSession.Order.Items,
+                    item => item.ProductCode == preview.ProductCode);
+                Assert.Equal(preview.ProductName, createdItem.ProductName);
+                Assert.Equal(preview.PurchasedQuantity, createdItem.PurchasedQuantity);
+                Assert.Equal(preview.ActiveAllocatedQuantity, createdItem.ActiveAllocatedQuantity);
+                Assert.Equal(preview.CompletedConsumedQuantity, createdItem.CompletedConsumedQuantity);
+                Assert.Equal(preview.AvailableQuantity, createdItem.AvailableQuantity);
+            }
+        }
 
         var invalidResponse = await _client.PostAsJsonAsync(
             "/api/demo/sessions",

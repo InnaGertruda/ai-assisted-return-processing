@@ -107,6 +107,18 @@
 
 **Evidence:** `DemoSessionApiTests` proves independent clean sessions, cross-session 404 responses, reset isolation, expiry, deterministic empty-database reconstruction and real SQLite foreign-key rejection. `MigrationModelTests` prevents unversioned schema drift.
 
+## ADR-010 — Exact Replay fixtures and dry-run trace persistence
+
+**Status:** Accepted for AI-2.
+
+**Decision:** Replay interpretation reads a versioned embedded fixture catalog and requires the session scenario plus exact supported message to match. Fixture item placeholders are resolved only from the already retrieved, session-scoped order context. Model-shaped JSON is then parsed with unknown fields and invalid enum values rejected. AI-2 persists one public-safe JSON trace record per run, linked to the demo session, but does not persist a new ReturnSubmission, ReturnCase or ReturnItem. The final dry-run state is `EligibleForCommit` / `Not committed`; `Accepted` remains unavailable until AI-3 performs a durable atomic allocation.
+
+**Why:** Exact fixtures make the no-cost portfolio behavior deterministic and prevent arbitrary visitor wording from being misrepresented as AI output. Persisting the complete bounded trace payload keeps the inspector contract reconstructible without introducing premature normalized trace aggregates.
+
+**Trade-off:** Replay is deliberately not a general natural-language interpreter, and JSON trace payloads are optimized for a small inspectable demo rather than analytical querying. A later schema change needs an explicit trace-version migration or compatibility reader.
+
+**Evidence:** `ReplayReturnIntentInterpreterTests`, `ReturnInterpretationPipelineTests`, and `AiReplayApiTests` cover exact matching, strict schema checks, evidence grounding, all AI-2 scenarios, session isolation, and unchanged order/case state.
+
 ## ADR hygiene
 
 For every changed decision: record status (`Proposed`, `Accepted`, `Superseded`, `Rejected`), motivation, option rejected, consequences, evidence/tests, and version/date. Maintain stable rule IDs from `BUSINESS_RULES.md`. Business/legal assumptions stay explicitly **UNVERIFIED** until independently verified.
