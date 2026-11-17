@@ -13,7 +13,6 @@ public sealed class AiReplayApiTests : IClassFixture<ReturnFlowApiFactory>
 
     public static TheoryData<string, string, string> ScenarioOutcomes => new()
     {
-        { "S01", "I want to return one more lamp.", "EligibleForCommit" },
         { "S02", "I want to return it.", "ClarificationRequired" },
         { "S03", "Return the remaining two lamps.", "CannotProceed" },
         { "S06", "Return one lamp.", "ManualReview" },
@@ -25,7 +24,7 @@ public sealed class AiReplayApiTests : IClassFixture<ReturnFlowApiFactory>
 
     [Theory]
     [MemberData(nameof(ScenarioOutcomes))]
-    public async Task Replay_scenarios_produce_expected_provisional_outcomes_without_business_writes(
+    public async Task Non_committing_replay_scenarios_preserve_business_state(
         string scenarioId,
         string message,
         string expectedOutcome)
@@ -50,7 +49,7 @@ public sealed class AiReplayApiTests : IClassFixture<ReturnFlowApiFactory>
     }
 
     [Fact]
-    public async Task S01_trace_is_persisted_session_scoped_and_explicitly_dry_run()
+    public async Task S01_trace_is_persisted_session_scoped_and_explicitly_committed()
     {
         var owner = await CreateSessionAsync("S01");
         var other = await CreateSessionAsync("S01");
@@ -62,10 +61,12 @@ public sealed class AiReplayApiTests : IClassFixture<ReturnFlowApiFactory>
             $"/api/demo/sessions/{other.SessionId}/ai-runs/{trace.RunId}");
 
         Assert.NotNull(ownerRead);
-        Assert.Equal("EligibleForCommit", ownerRead.FinalOutcome);
-        Assert.Equal("Skipped", ownerRead.Stages.Single(x => x.Stage == "Commit").Status);
+        Assert.Equal("Accepted", ownerRead.FinalOutcome);
+        Assert.Equal("Committed", ownerRead.CommitStatus);
+        Assert.NotNull(ownerRead.CreatedReturnCaseId);
+        Assert.Equal("Passed", ownerRead.Stages.Single(x => x.Stage == "Commit").Status);
         Assert.Contains(
-            "AI_2_DRY_RUN_NO_COMMIT",
+            "ATOMIC_RETURN_COMMITTED",
             ownerRead.Stages.Single(x => x.Stage == "Commit").ReasonCodes);
         Assert.Equal(HttpStatusCode.NotFound, crossSessionRead.StatusCode);
     }

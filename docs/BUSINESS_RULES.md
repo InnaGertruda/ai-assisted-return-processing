@@ -4,16 +4,16 @@
 
 | Rule ID | Requirement | Applies at | Proof |
 |---|---|---|---|
-| BR-RET-001 | Every accepted ReturnCase references exactly one Order. | Case commit | FK/domain test |
-| BR-RET-002 | Every ReturnItem must reference an OrderItem belonging to the same Order **and demo session** as its ReturnCase. | Output verification and commit | Cross-order/cross-session rejection |
-| BR-RET-003 | Requested quantity is a positive integer. | Output verification and commit | Zero/negative rejected |
-| BR-RET-004 | Across all relevant ReturnCases, `active allocated + completed consumed <= purchased quantity` for every OrderItem. | Atomic allocation commit | Two final-unit requests: exactly one succeeds |
+| BR-RET-001 | Every accepted ReturnCase references exactly one Order. | Case commit | SQLite FK + `AtomicReturnApiTests.S01_commits_case_item_decision_trace_and_updates_authoritative_summary` |
+| BR-RET-002 | Every ReturnItem must reference an OrderItem belonging to the same Order **and demo session** as its ReturnCase. | Output verification and commit | Composite FKs + authoritative scope revalidation + cross-session tests |
+| BR-RET-003 | Requested quantity is a positive integer. | Output verification and commit | Domain/SQLite checks + authoritative transaction validation |
+| BR-RET-004 | Across all relevant ReturnCases, `active allocated + completed consumed <= purchased quantity` for every OrderItem. | Atomic allocation commit | `AtomicReturnApiTests.S10_two_connections_racing_for_final_unit_commit_exactly_one` |
 | BR-RET-005 | Released/cancelled reservation stops consuming capacity; completed returned quantity continues to count. | Capacity calculation | State semantics tests; cancellation action itself is future scope |
-| BR-RET-006 | Retry with same session + submission key + same payload returns prior result, not a new case; key reuse with different payload conflicts. | Pre-LLM idempotency check and commit | Replay/retry/parallel tests |
-| BR-RET-007 | Separate legitimate additional return submission is allowed while capacity remains. | Business validation/commit | Separate-key test |
+| BR-RET-006 | Retry with same session + submission key + same payload returns prior result, not a new case; key reuse with different payload conflicts. | Pre-LLM idempotency check and commit | S04, parallel same-key, payload-conflict, and interpreter-short-circuit tests |
+| BR-RET-007 | Separate legitimate additional return submission is allowed while capacity remains. | Business validation/commit | `AtomicReturnApiTests.S05_distinct_submission_keys_create_independent_cases_while_capacity_remains` |
 | BR-RET-008 | An AI-interpreted request with unresolved item, quantity, or evidence ambiguity cannot create a case automatically. | Post-LLM grounding | Missing referent and duplicate item names |
 | BR-RET-010 | AI output is only a proposal; no direct refund, state mutation, arbitrary SQL or guardrail bypass from model content. | Interpreter boundary | Prompt injection fixture |
-| BR-AUD-001 | Public decision traces retain safe evidence, outcome, rule IDs/version, schema/prompt version and actual commit status. | Trace writer/read API | Trace redaction and accepted-vs-dry-run tests |
+| BR-AUD-001 | Public decision traces retain safe evidence, outcome, rule IDs/version, schema/prompt version and actual commit status. | Trace writer/read API | S01 committed trace + injected rollback/accepted-trace absence tests |
 
 ## Quantity semantics for first slice
 

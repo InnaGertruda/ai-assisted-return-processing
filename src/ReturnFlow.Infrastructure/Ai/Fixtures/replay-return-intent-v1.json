@@ -15,6 +15,16 @@
     "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"{{item0}}\",\"productMention\":\"lamp\",\"requestedQuantity\":2,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"two lamps\"]}],\"ambiguities\":[],\"requiresClarification\":false}"
   },
   {
+    "scenarioId": "S04",
+    "message": "I want to return one more lamp.",
+    "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"{{item0}}\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"one more lamp\"]}],\"ambiguities\":[],\"requiresClarification\":false}"
+  },
+  {
+    "scenarioId": "S05",
+    "message": "I want to return one more lamp.",
+    "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"{{item0}}\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"one more lamp\"]}],\"ambiguities\":[],\"requiresClarification\":false}"
+  },
+  {
     "scenarioId": "S06",
     "message": "Return one lamp.",
     "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"oi-fake-999\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"one lamp\"]}],\"ambiguities\":[],\"requiresClarification\":false}"
@@ -28,6 +38,11 @@
     "scenarioId": "S08",
     "message": "Return one lamp.",
     "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"ApproveRefund\",\"items\":[],\"ambiguities\":[],\"requiresClarification\":false}"
+  },
+  {
+    "scenarioId": "S10",
+    "message": "I want to return one more lamp.",
+    "rawOutput": "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"{{item0}}\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"one more lamp\"]}],\"ambiguities\":[],\"requiresClarification\":false}"
   },
   {
     "scenarioId": "S11",

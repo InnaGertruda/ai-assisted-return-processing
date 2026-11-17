@@ -112,6 +112,9 @@ defineProps({
       <div class="mt-5 rounded-xl border border-coral/30 bg-coral/10 p-4">
         <p class="text-xs uppercase tracking-[0.14em] text-coral">Commit boundary</p>
         <p class="mt-1 font-semibold">{{ trace.commitStatus }}</p>
+        <p v-if="trace.createdReturnCaseId" class="mt-2 text-xs text-white/60">
+          Return Case {{ trace.createdReturnCaseId }}
+        </p>
       </div>
     </div>
 

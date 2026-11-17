@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ReturnFlow.Application;
 
@@ -25,6 +27,7 @@ public sealed class ReturnInterpretationPipeline(
         var now = timeProvider.GetUtcNow();
         var runId = $"airun-{Guid.NewGuid():N}";
         var stages = new List<AiStageResult>();
+        var payloadHash = CreatePayloadHash(request);
 
         if (string.IsNullOrWhiteSpace(request.DemoSessionId)
             || string.IsNullOrWhiteSpace(request.SelectedOrderId))
@@ -49,7 +52,8 @@ public sealed class ReturnInterpretationPipeline(
             AddSkipped(stages, "ContextRetrieval", "Interpretation", "SchemaVerification",
                 "GroundingVerification", "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, inputContext.ScenarioId, now, "CannotProceed", null, stages), cancellationToken);
+                runId, request, inputContext.ScenarioId, now, "CannotProceed", null, stages),
+                request, payloadHash, cancellationToken);
         }
 
         stages.Add(Passed("InputGuardrails", "INPUT_ACCEPTED", "BR-RET-010"));
@@ -69,6 +73,22 @@ public sealed class ReturnInterpretationPipeline(
             "BR-RET-002",
             new SafeEvidence("scenarioId", context.ScenarioId)));
 
+        var idempotency = await store.CheckIdempotencyAsync(
+            request.DemoSessionId.Trim(),
+            request.SubmissionKey.Trim(),
+            payloadHash,
+            now,
+            cancellationToken);
+        if (idempotency.Status == IdempotencyCheckStatus.Conflict)
+        {
+            throw new AiSubmissionConflictException();
+        }
+
+        if (idempotency.Status == IdempotencyCheckStatus.Match)
+        {
+            return idempotency.Trace!;
+        }
+
         var interpreted = await interpreter.InterpretAsync(
             new InterpreterRequest(context.ScenarioId, request.Message.Trim(), context),
             cancellationToken);
@@ -80,7 +100,8 @@ public sealed class ReturnInterpretationPipeline(
                 "BR-RET-010"));
             AddSkipped(stages, "SchemaVerification", "GroundingVerification", "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages), cancellationToken);
+                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages),
+                request, payloadHash, cancellationToken);
         }
 
         stages.Add(Passed(
@@ -102,7 +123,8 @@ public sealed class ReturnInterpretationPipeline(
             stages.Add(Failed("SchemaVerification", "MODEL_OUTPUT_SCHEMA_INVALID", "BR-RET-010"));
             AddSkipped(stages, "GroundingVerification", "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages), cancellationToken);
+                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages),
+                request, payloadHash, cancellationToken);
         }
 
         stages.Add(Passed("SchemaVerification", "MODEL_OUTPUT_SCHEMA_VALID", "BR-RET-003", "BR-RET-010"));
@@ -113,7 +135,8 @@ public sealed class ReturnInterpretationPipeline(
         {
             AddSkipped(stages, "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, grounding.Outcome, proposal, stages), cancellationToken);
+                runId, request, context.ScenarioId, now, grounding.Outcome, proposal, stages),
+                request, payloadHash, cancellationToken);
         }
 
         var business = ValidateBusiness(proposal!, context);
@@ -122,18 +145,30 @@ public sealed class ReturnInterpretationPipeline(
         {
             AddSkipped(stages, "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, business.Outcome, proposal, stages), cancellationToken);
+                runId, request, context.ScenarioId, now, business.Outcome, proposal, stages),
+                request, payloadHash, cancellationToken);
         }
 
-        stages.Add(new AiStageResult(
-            "Commit",
-            "Skipped",
-            ["AI_2_DRY_RUN_NO_COMMIT"],
-            ["BR-RET-004", "BR-RET-010"],
-            [new SafeEvidence("commitStatus", "Not committed")]));
-
-        return await SaveAsync(CreateTrace(
-            runId, request, context.ScenarioId, now, "EligibleForCommit", proposal, stages), cancellationToken);
+        var preCommitTrace = CreateTrace(
+            runId, request, context.ScenarioId, now, "EligibleForCommit", proposal, stages);
+        try
+        {
+            return await store.CommitAsync(
+                new ReturnCommitRequest(request, payloadHash, proposal!, preCommitTrace),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is not (
+            OperationCanceledException or AiResourceNotFoundException or AiSubmissionConflictException))
+        {
+            stages.Add(Failed(
+                "Commit",
+                "ATOMIC_COMMIT_TECHNICAL_FAILURE",
+                "BR-RET-004",
+                "BR-AUD-001"));
+            var technicalFailure = CreateTrace(
+                runId, request, context.ScenarioId, now, "TechnicalFailure", proposal, stages);
+            return await SaveAsync(technicalFailure, request, payloadHash, cancellationToken);
+        }
     }
 
     public async Task<AiExecutionTrace> GetAsync(
@@ -145,10 +180,15 @@ public sealed class ReturnInterpretationPipeline(
 
     private async Task<AiExecutionTrace> SaveAsync(
         AiExecutionTrace trace,
+        InterpretReturnMessageRequest request,
+        string payloadHash,
         CancellationToken cancellationToken)
     {
-        await store.SaveTraceAsync(trace, cancellationToken);
-        return trace;
+        return await store.SaveTraceAsync(
+            trace,
+            request.SubmissionKey.Trim(),
+            payloadHash,
+            cancellationToken);
     }
 
     private static AiExecutionTrace CreateTrace(
@@ -168,8 +208,19 @@ public sealed class ReturnInterpretationPipeline(
             AiContractVersions.Schema,
             outcome,
             "Not committed",
+            null,
             proposal,
             stages);
+
+    private static string CreatePayloadHash(InterpretReturnMessageRequest request)
+    {
+        var canonical = string.Join('\n',
+            request.SelectedOrderId?.Trim() ?? string.Empty,
+            request.Message?.Trim() ?? string.Empty,
+            request.Mode?.Trim().ToUpperInvariant() ?? string.Empty);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+            .ToLowerInvariant();
+    }
 
     private static string? ValidateInput(InterpretReturnMessageRequest request)
     {

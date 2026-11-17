@@ -42,13 +42,13 @@ public sealed class DemoSessionApiTests : IClassFixture<ReturnFlowApiFactory>
     {
         var scenarios = await _client.GetFromJsonAsync<DemoScenarioSummary[]>(
             "/api/demo/scenarios");
-        Assert.Equal(8, scenarios!.Length);
+        Assert.Equal(11, scenarios!.Length);
         var scenario = Assert.Single(scenarios, x => x.Id == "S01");
         Assert.Equal("S01", scenario.Id);
         Assert.Equal("1.0", scenario.FixtureVersion);
         Assert.Equal("I want to return one more lamp.", scenario.Message);
-        Assert.Equal("EligibleForCommit", scenario.ExpectedOutcome);
-        Assert.Contains("will not create", scenario.ExpectedExplanation);
+        Assert.Equal("Accepted", scenario.ExpectedOutcome);
+        Assert.Contains("atomically create", scenario.ExpectedExplanation);
         Assert.Equal("RF-1050", scenario.Order.DisplayNumber);
         var previewItem = Assert.Single(scenario.Order.Items);
         Assert.Equal("Arc floor lamp", previewItem.ProductName);

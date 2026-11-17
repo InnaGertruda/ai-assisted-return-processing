@@ -115,6 +115,10 @@ public static class DemoEndpoints
         {
             return NotFound();
         }
+        catch (AiSubmissionConflictException)
+        {
+            return Results.Conflict(new DemoApiError(AiSubmissionConflictException.SafeReasonCode));
+        }
     }
 
     private static async Task<IResult> GetInterpretationAsync(

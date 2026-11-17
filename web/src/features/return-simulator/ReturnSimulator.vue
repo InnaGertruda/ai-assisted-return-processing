@@ -160,10 +160,12 @@ async function run() {
       class="mt-5 w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35"
       @click="run"
     >
-      {{ loading ? 'Running verification…' : 'Run Replay verification' }}
+      {{ loading ? 'Running guarded return flow…' : 'Run Replay return flow' }}
     </button>
 
     <p v-if="error" role="alert" class="mt-4 text-sm text-coral">{{ error }}</p>
-    <p class="mt-4 text-xs leading-5 text-ink/45">No external AI calls · Proposal only · No new return created</p>
+    <p class="mt-4 text-xs leading-5 text-ink/45">
+      No external AI calls · AI proposal is untrusted · Accepted means the Return Case was committed
+    </p>
   </section>
 </template>

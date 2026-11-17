@@ -16,8 +16,8 @@ public static class S01ScenarioFixture
         "Three fictional lamps were purchased and one is already reserved in a seeded return case.",
         FixtureVersion,
         "I want to return one more lamp.",
-        "EligibleForCommit",
-        "Verification should pass, but AI-2 will not create or reserve a new return.",
+        "Accepted",
+        "Verification should pass and AI-3 should atomically create a new return case.",
         new DemoScenarioOrderPreview(
             "RF-1050",
             [new DemoScenarioOrderItemPreview("LAMP-ARC", "Arc floor lamp", 3, 1, 0, 2)]));

@@ -119,6 +119,20 @@
 
 **Evidence:** `ReplayReturnIntentInterpreterTests`, `ReturnInterpretationPipelineTests`, and `AiReplayApiTests` cover exact matching, strict schema checks, evidence grounding, all AI-2 scenarios, session isolation, and unchanged order/case state.
 
+## ADR-011 — Transactional idempotency and authoritative SQLite allocation
+
+**Status:** Accepted for AI-3.
+
+**Decision:** A normalized SHA-256 payload fingerprint covers the selected order, trimmed message and normalized mode. A session-scoped idempotency record uniquely owns `(DemoSessionId, SubmissionKey)` and points to the original execution trace. An identical retry returns that original logical result before interpretation when already present; a different fingerprint returns a conflict. Verified `CreateReturn` proposals enter a non-deferred SQLite transaction, which reserves the single writer before re-reading session/order membership and quantities. Requested lines are aggregated and sorted, then the submission, case, all ReturnItems, decision record, idempotency record and accepted trace are saved in one transaction. Business rejection may persist an uncommitted trace/idempotency result, but never a partial case. Transient SQLite busy/locked errors have bounded retries; capacity rejection does not.
+
+**Why:** AI-2 preflight is necessarily stale by commit time. Reserving the SQLite writer before the final read prevents two independent requests from both consuming the final unit, while persisted fingerprints make retries stable without trusting client state or calling Replay again.
+
+**Trade-off:** SQLite remains a single-writer, single-instance demo store. Idempotency is scoped to a demo session and preserves the first logical outcome, including failures; retrying a technical failure therefore requires a new submission key. Payload fingerprints deliberately exclude raw session/key values because those form the record key, but include every request field that can change interpretation or allocation. A future multi-instance design requires a different coordination store.
+
+**Evidence:** `AtomicReturnApiTests` uses real temporary SQLite files and independent HTTP scopes/connections to prove S01, S03, S04, S05, parallel identical requests, S10 final-unit contention, multi-line all-or-nothing rejection, and rollback after an injected decision-record failure. `MigrationModelTests` proves the versioned model matches the migration snapshot.
+
+---
+
 ## ADR hygiene
 
 For every changed decision: record status (`Proposed`, `Accepted`, `Superseded`, `Rejected`), motivation, option rejected, consequences, evidence/tests, and version/date. Maintain stable rule IDs from `BUSINESS_RULES.md`. Business/legal assumptions stay explicitly **UNVERIFIED** until independently verified.

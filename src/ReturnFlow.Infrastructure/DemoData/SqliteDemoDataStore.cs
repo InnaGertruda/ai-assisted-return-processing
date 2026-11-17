@@ -232,6 +232,12 @@ public sealed class SqliteDemoDataStore(ReturnFlowDbContext dbContext) : IDemoDa
         bool deleteSession,
         CancellationToken cancellationToken)
     {
+        await dbContext.DecisionRecords
+            .Where(x => x.DemoSessionId == sessionId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.AiRunIdempotencyRecords
+            .Where(x => x.DemoSessionId == sessionId)
+            .ExecuteDeleteAsync(cancellationToken);
         await dbContext.AiTraces
             .Where(x => x.DemoSessionId == sessionId)
             .ExecuteDeleteAsync(cancellationToken);

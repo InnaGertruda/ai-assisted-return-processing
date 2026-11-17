@@ -94,7 +94,22 @@ public interface IReturnInterpretationStore
         DateTimeOffset now,
         CancellationToken cancellationToken);
 
-    Task SaveTraceAsync(AiExecutionTrace trace, CancellationToken cancellationToken);
+    Task<IdempotencyCheckResult> CheckIdempotencyAsync(
+        string sessionId,
+        string submissionKey,
+        string payloadHash,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    Task<AiExecutionTrace> SaveTraceAsync(
+        AiExecutionTrace trace,
+        string submissionKey,
+        string payloadHash,
+        CancellationToken cancellationToken);
+
+    Task<AiExecutionTrace> CommitAsync(
+        ReturnCommitRequest request,
+        CancellationToken cancellationToken);
 
     Task<AiExecutionTrace?> GetTraceAsync(
         string sessionId,
@@ -113,8 +128,26 @@ public sealed record AiExecutionTrace(
     string SchemaVersion,
     string FinalOutcome,
     string CommitStatus,
+    string? CreatedReturnCaseId,
     ReturnIntentProposalV1? Proposal,
     IReadOnlyList<AiStageResult> Stages);
+
+public enum IdempotencyCheckStatus
+{
+    NotFound,
+    Match,
+    Conflict,
+}
+
+public sealed record IdempotencyCheckResult(
+    IdempotencyCheckStatus Status,
+    AiExecutionTrace? Trace = null);
+
+public sealed record ReturnCommitRequest(
+    InterpretReturnMessageRequest Intake,
+    string PayloadHash,
+    ReturnIntentProposalV1 Proposal,
+    AiExecutionTrace PreCommitTrace);
 
 public sealed record AiStageResult(
     string Stage,
@@ -126,3 +159,8 @@ public sealed record AiStageResult(
 public sealed record SafeEvidence(string Kind, string Value);
 
 public sealed class AiResourceNotFoundException : Exception;
+
+public sealed class AiSubmissionConflictException : Exception
+{
+    public const string SafeReasonCode = "SUBMISSION_KEY_PAYLOAD_CONFLICT";
+}

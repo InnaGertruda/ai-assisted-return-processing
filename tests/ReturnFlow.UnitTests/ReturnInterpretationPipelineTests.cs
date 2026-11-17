@@ -89,6 +89,27 @@ public sealed class ReturnInterpretationPipelineTests
         Assert.Single(store.Traces);
     }
 
+    [Fact]
+    public async Task Identical_idempotent_result_is_returned_before_interpreter_call()
+    {
+        var original = new AiExecutionTrace(
+            "airun-original", "session-1", "S01", "Replay", DateTimeOffset.UtcNow,
+            AiContractVersions.Prompt, AiContractVersions.Schema, "Accepted", "Committed",
+            "case-original", null, []);
+        var interpreter = new CountingInterpreter();
+        var store = new MemoryStore(Context)
+        {
+            IdempotencyResult = new IdempotencyCheckResult(IdempotencyCheckStatus.Match, original),
+        };
+        var pipeline = new ReturnInterpretationPipeline(interpreter, store, TimeProvider.System);
+
+        var result = await pipeline.RunAsync(Request("I want to return one lamp."));
+
+        Assert.Same(original, result);
+        Assert.Equal(0, interpreter.CallCount);
+        Assert.Empty(store.Traces);
+    }
+
     private static InterpretReturnMessageRequest Request(string message) =>
         new("session-1", "order-1", "submission-1", message, "Replay");
 
@@ -117,6 +138,17 @@ public sealed class ReturnInterpretationPipelineTests
     {
         public List<AiExecutionTrace> Traces { get; } = [];
 
+        public IdempotencyCheckResult IdempotencyResult { get; init; } =
+            new(IdempotencyCheckStatus.NotFound);
+
+        public Task<IdempotencyCheckResult> CheckIdempotencyAsync(
+            string sessionId,
+            string submissionKey,
+            string payloadHash,
+            DateTimeOffset now,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(IdempotencyResult);
+
         public Task<ReturnInterpretationContext?> GetContextAsync(
             string sessionId,
             string orderId,
@@ -125,10 +157,30 @@ public sealed class ReturnInterpretationPipelineTests
             Task.FromResult<ReturnInterpretationContext?>(
                 sessionId == context.DemoSessionId && orderId == context.OrderId ? context : null);
 
-        public Task SaveTraceAsync(AiExecutionTrace trace, CancellationToken cancellationToken)
+        public Task<AiExecutionTrace> SaveTraceAsync(
+            AiExecutionTrace trace,
+            string submissionKey,
+            string payloadHash,
+            CancellationToken cancellationToken)
         {
             Traces.Add(trace);
-            return Task.CompletedTask;
+            return Task.FromResult(trace);
+        }
+
+        public Task<AiExecutionTrace> CommitAsync(
+            ReturnCommitRequest request,
+            CancellationToken cancellationToken)
+        {
+            var committed = request.PreCommitTrace with
+            {
+                FinalOutcome = "Accepted",
+                CommitStatus = "Committed",
+                CreatedReturnCaseId = "case-created",
+                Stages = request.PreCommitTrace.Stages.Append(new AiStageResult(
+                    "Commit", "Passed", ["ATOMIC_RETURN_COMMITTED"], ["BR-RET-004"], [])).ToArray(),
+            };
+            Traces.Add(committed);
+            return Task.FromResult(committed);
         }
 
         public Task<AiExecutionTrace?> GetTraceAsync(
