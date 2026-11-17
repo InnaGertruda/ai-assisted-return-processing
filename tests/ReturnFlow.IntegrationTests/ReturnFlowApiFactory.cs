@@ -32,6 +32,8 @@ public sealed class ReturnFlowApiFactory : WebApplicationFactory<Program>
     public AdjustableTimeProvider TimeProvider { get; } = new(
         new DateTimeOffset(2026, 11, 17, 12, 0, 0, TimeSpan.Zero));
 
+    internal string DatabasePath => _databasePath;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureLogging(logging => logging.ClearProviders());

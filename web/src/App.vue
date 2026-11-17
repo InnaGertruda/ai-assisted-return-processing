@@ -13,7 +13,7 @@ const trace = ref(undefined)
       <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
         <a href="#main" class="font-semibold tracking-tight text-ink">ReturnFlow</a>
         <span class="rounded-full border border-moss/15 bg-limewash/45 px-3 py-1 text-xs font-medium text-moss">
-          Architecture demo · AI-2 · Replay
+          Architecture demo · AI-3 · Replay
         </span>
       </div>
     </header>
@@ -26,7 +26,7 @@ const trace = ref(undefined)
         </h1>
         <p class="mt-5 max-w-2xl text-base leading-7 text-ink/65">
           Run a fixed Replay scenario to inspect an untrusted proposal, independent verification, and deterministic
-          preflight. AI-2 never creates a return case: every result is explicitly not committed.
+          preflight, and the atomic SQLite commit boundary. Accepted appears only after a durable Return Case commit.
         </p>
       </section>
 

@@ -11,6 +11,13 @@ test('dry-run outcome always includes the actual commit status', () => {
   assert.equal(stageTone('Skipped'), 'text-white/45')
 })
 
+test('accepted outcome is labeled with committed state', () => {
+  assert.equal(
+    outcomeLabel({ finalOutcome: 'Accepted', commitStatus: 'Committed' }),
+    'Accepted · Committed',
+  )
+})
+
 test('rule catalog covers every documented MVP rule and resolves trace references', () => {
   assert.deepEqual(
     businessRules.map((rule) => rule.id),

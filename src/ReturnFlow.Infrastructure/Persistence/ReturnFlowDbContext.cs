@@ -20,6 +20,10 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
 
     public DbSet<AiTraceRecord> AiTraces => Set<AiTraceRecord>();
 
+    public DbSet<AiRunIdempotencyRecord> AiRunIdempotencyRecords => Set<AiRunIdempotencyRecord>();
+
+    public DbSet<DecisionRecord> DecisionRecords => Set<DecisionRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DemoSession>(entity =>
@@ -45,6 +49,57 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
             entity.HasOne<DemoSession>()
                 .WithMany()
                 .HasForeignKey(x => x.DemoSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AiRunIdempotencyRecord>(entity =>
+        {
+            entity.ToTable("AiRunIdempotencyRecords");
+            entity.HasKey(x => new { x.DemoSessionId, x.SubmissionKey });
+            entity.Property(x => x.DemoSessionId).HasMaxLength(64);
+            entity.Property(x => x.SubmissionKey).HasMaxLength(120);
+            entity.Property(x => x.PayloadHash).HasMaxLength(64);
+            entity.Property(x => x.AiExecutionTraceId).HasMaxLength(80);
+            entity.HasIndex(x => x.AiExecutionTraceId).IsUnique();
+            entity.HasOne<DemoSession>()
+                .WithMany()
+                .HasForeignKey(x => x.DemoSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<AiTraceRecord>()
+                .WithMany()
+                .HasForeignKey(x => x.AiExecutionTraceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DecisionRecord>(entity =>
+        {
+            entity.ToTable("DecisionRecords");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasMaxLength(80);
+            entity.Property(x => x.DemoSessionId).HasMaxLength(64);
+            entity.Property(x => x.ReturnSubmissionId).HasMaxLength(80);
+            entity.Property(x => x.ReturnCaseId).HasMaxLength(80);
+            entity.Property(x => x.AiExecutionTraceId).HasMaxLength(80);
+            entity.Property(x => x.Outcome).HasMaxLength(32);
+            entity.Property(x => x.RuleReferences).HasMaxLength(512);
+            entity.Property(x => x.CreatedAt).HasConversion<long>();
+            entity.HasIndex(x => x.ReturnCaseId).IsUnique();
+            entity.HasIndex(x => x.AiExecutionTraceId).IsUnique();
+            entity.HasOne<DemoSession>()
+                .WithMany()
+                .HasForeignKey(x => x.DemoSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ReturnSubmission>()
+                .WithMany()
+                .HasForeignKey(x => x.ReturnSubmissionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ReturnCase>()
+                .WithMany()
+                .HasForeignKey(x => x.ReturnCaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<AiTraceRecord>()
+                .WithMany()
+                .HasForeignKey(x => x.AiExecutionTraceId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

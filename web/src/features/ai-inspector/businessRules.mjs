@@ -75,7 +75,7 @@ export const businessRules = Object.freeze([
     description:
       'Public decision traces retain safe evidence, outcomes, rule and version references, and the actual commit status.',
     appliesAt: 'Trace writer and read API',
-    proof: 'Trace redaction and dry-run status tests',
+    proof: 'Trace redaction and accepted-versus-uncommitted status tests',
   },
 ])
 

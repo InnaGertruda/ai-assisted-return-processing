@@ -2,7 +2,7 @@
 
 AI-Assisted Return Processing is a public architecture portfolio demo showing how an application can keep natural-language interpretation separate from trusted verification and business decisions.
 
-The current implementation is **Stage AI-2**: a .NET 10 API, isolated fictional demo sessions backed by SQLite, eight exact-match Replay fixtures, strict proposal/evidence verification, deterministic return-capacity preflight, safe persisted traces, and a minimal Vue 3 execution inspector. AI-2 is dry-run only: it does not call a live provider or create a new return submission, case, or item.
+The current implementation is **Stage AI-3**: a .NET 10 API, isolated fictional demo sessions backed by SQLite, eleven exact-match Replay fixtures, strict proposal/evidence verification, authoritative transactional revalidation, idempotent Return Case creation, safe persisted traces, and a minimal Vue 3 execution inspector. Replay makes no live-provider calls. `Accepted` is emitted only after the submission, case, items, decision evidence, idempotency record, and trace commit atomically.
 
 ## Prerequisites
 
@@ -57,12 +57,13 @@ $run = Invoke-RestMethod `
     mode = 'Replay'
   } | ConvertTo-Json)
 
-$run.finalOutcome   # EligibleForCommit
-$run.commitStatus   # Not committed
+$run.finalOutcome        # Accepted
+$run.commitStatus        # Committed
+$run.createdReturnCaseId # rc-...
 Invoke-RestMethod "http://localhost:5080/api/demo/sessions/$($session.sessionId)/ai-runs/$($run.runId)"
 ```
 
-Replay input is intentionally exact: arbitrary wording is not presented as a fixture match. S02, S03, S06, S07, S08, S11, and S12 exercise clarification, capacity rejection, fabricated identity, prompt injection, malformed output, duplicate product names, and unsupported intent respectively. Every trace is labeled `Replay`; `Accepted` is reserved for a durable AI-3 commit.
+Replay input is intentionally exact: arbitrary wording is not presented as a fixture match. S02, S03, S06, S07, S08, S11, and S12 exercise clarification, capacity rejection, fabricated identity, prompt injection, malformed output, duplicate product names, and unsupported intent. S04, S05, and S10 demonstrate idempotent retry, independent additional returns, and two distinct requests racing for the final unit. Every trace is labeled `Replay`; `Accepted` means the AI-3 transaction committed durably.
 
 In a second terminal, install and start the frontend:
 
@@ -86,7 +87,7 @@ npm run test
 npm run build
 ```
 
-`npm run build` includes TypeScript checking. The frontend's optional `VITE_API_BASE_URL` is documented in [`.env.example`](.env.example); the AI-2 simulator uses it for the session and Replay-run APIs.
+`npm run build` includes TypeScript checking. The frontend's optional `VITE_API_BASE_URL` is documented in [`.env.example`](.env.example); the AI-3 simulator uses it for the session and Replay-run APIs.
 
 ## Repository structure
 
@@ -101,4 +102,4 @@ npm run build
 
 ## Scope and safety
 
-All demo data is fictional. Replay model output is untrusted and can only become `EligibleForCommit`; every AI-2 run remains `Not committed`. The only new persistence is a session-scoped safe trace. Atomic return-case creation, idempotency and concurrency belong to AI-3; optional Live integration and deployment remain later reviewed stages.
+All demo data is fictional. Replay model output remains an untrusted proposal; only deterministic verification and the write-reserved SQLite transaction can authorize a Return Case. Identical retries return the original logical result, conflicting key reuse is rejected, and capacity is re-read inside the transaction. Optional Live integration, richer AI-4 interaction, and deployment remain later reviewed stages.

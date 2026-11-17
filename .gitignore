@@ -44,7 +44,8 @@ ScaffoldingReadMe.txt
 # Local agent instructions and implementation evidence
 /AGENTS.md
 /CODEX_START.md
-/docs/stage-reports/
+/docs/stage-reports/*
+!/docs/stage-reports/AI-3.md
 /scenarios/README.md
 
 # Local databases and SQLite sidecars

@@ -30,6 +30,22 @@ public static class ReplayScenarioFixtures
             "Only one lamp is available, so the requested quantity of two should fail business validation.",
             new PreviewItem("LAMP-ARC", "Arc floor lamp", 3, 2)),
         Scenario(
+            "S04",
+            "Idempotent retry",
+            "The same clear request and submission key may be retried without another allocation.",
+            "I want to return one more lamp.",
+            "Accepted",
+            "The first request commits; an identical retry returns the same case.",
+            new PreviewItem("LAMP-ARC", "Arc floor lamp", 3, 1)),
+        Scenario(
+            "S05",
+            "Independent additional return",
+            "Distinct submissions may create independent cases while capacity remains.",
+            "I want to return one more lamp.",
+            "Accepted",
+            "A distinct key creates a distinct case while another lamp is available.",
+            new PreviewItem("LAMP-ARC", "Arc floor lamp", 3, 1)),
+        Scenario(
             "S06",
             "Fabricated identifier",
             "Replay proposes an item identifier that is absent from trusted order context.",
@@ -53,6 +69,14 @@ public static class ReplayScenarioFixtures
             "TechnicalFailure",
             "The malformed Replay output should fail strict schema verification.",
             new PreviewItem("LAMP-ARC", "Arc floor lamp", 2)),
+        Scenario(
+            "S10",
+            "Concurrent final unit",
+            "Only one lamp remains while two distinct requests race for it.",
+            "I want to return one more lamp.",
+            "Accepted or CannotProceed",
+            "SQLite write reservation permits exactly one final-unit allocation.",
+            new PreviewItem("LAMP-ARC", "Arc floor lamp", 3, 2)),
         Scenario(
             "S11",
             "Ambiguous product",
@@ -120,7 +144,8 @@ public static class ReplayScenarioFixtures
         {
             "S02" => new Definition(
                 [new Item("LAMP-ARC", "Arc floor lamp", 1), new Item("CHAIR-OAK", "Oak chair", 1)], 0),
-            "S03" => new Definition([new Item("LAMP-ARC", "Arc floor lamp", 3)], 2),
+            "S03" or "S10" => new Definition([new Item("LAMP-ARC", "Arc floor lamp", 3)], 2),
+            "S04" or "S05" => new Definition([new Item("LAMP-ARC", "Arc floor lamp", 3)], 1),
             "S06" or "S07" or "S08" or "S12" =>
                 new Definition([new Item("LAMP-ARC", "Arc floor lamp", 2)], 0),
             "S11" => new Definition(
