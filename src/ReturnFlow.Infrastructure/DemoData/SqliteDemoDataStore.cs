@@ -10,8 +10,7 @@ public sealed class SqliteDemoDataStore(ReturnFlowDbContext dbContext) : IDemoDa
     public Task<IReadOnlyList<DemoScenarioSummary>> GetScenariosAsync(
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<DemoScenarioSummary> scenarios = [S01ScenarioFixture.CatalogEntry];
-        return Task.FromResult(scenarios);
+        return Task.FromResult(ReplayScenarioFixtures.Catalog);
     }
 
     public async Task DeleteExpiredSessionsAsync(
@@ -36,19 +35,19 @@ public sealed class SqliteDemoDataStore(ReturnFlowDbContext dbContext) : IDemoDa
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(scenarioId, S01ScenarioFixture.ScenarioId, StringComparison.Ordinal))
+        var fixture = ReplayScenarioFixtures.Create(sessionId, scenarioId, createdAt, expiresAt);
+        if (fixture is null)
         {
             return null;
         }
 
-        var fixture = S01ScenarioFixture.Create(sessionId, createdAt, expiresAt);
         dbContext.AddRange(
             fixture.Session,
-            fixture.Order,
-            fixture.OrderItem,
-            fixture.Submission,
-            fixture.ReturnCase,
-            fixture.ReturnItem);
+            fixture.Order);
+        dbContext.AddRange(fixture.OrderItems);
+        dbContext.AddRange(fixture.Submissions);
+        dbContext.AddRange(fixture.ReturnCases);
+        dbContext.AddRange(fixture.ReturnItems);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new DemoSessionSnapshot(
@@ -136,13 +135,17 @@ public sealed class SqliteDemoDataStore(ReturnFlowDbContext dbContext) : IDemoDa
 
         session.ResetLifetime(resetAt, expiresAt);
         dbContext.Update(session);
-        var fixture = S01ScenarioFixture.Create(sessionId, resetAt, expiresAt);
+        var fixture = ReplayScenarioFixtures.Create(
+            sessionId,
+            session.ScenarioId,
+            resetAt,
+            expiresAt)!;
         dbContext.AddRange(
-            fixture.Order,
-            fixture.OrderItem,
-            fixture.Submission,
-            fixture.ReturnCase,
-            fixture.ReturnItem);
+            fixture.Order);
+        dbContext.AddRange(fixture.OrderItems);
+        dbContext.AddRange(fixture.Submissions);
+        dbContext.AddRange(fixture.ReturnCases);
+        dbContext.AddRange(fixture.ReturnItems);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
@@ -229,6 +232,9 @@ public sealed class SqliteDemoDataStore(ReturnFlowDbContext dbContext) : IDemoDa
         bool deleteSession,
         CancellationToken cancellationToken)
     {
+        await dbContext.AiTraces
+            .Where(x => x.DemoSessionId == sessionId)
+            .ExecuteDeleteAsync(cancellationToken);
         await dbContext.ReturnItems
             .Where(x => x.DemoSessionId == sessionId)
             .ExecuteDeleteAsync(cancellationToken);

@@ -14,7 +14,13 @@ public static class S01ScenarioFixture
         ScenarioId,
         "Clear additional return",
         "Three fictional lamps were purchased and one is already reserved in a seeded return case.",
-        FixtureVersion);
+        FixtureVersion,
+        "I want to return one more lamp.",
+        "EligibleForCommit",
+        "Verification should pass, but AI-2 will not create or reserve a new return.",
+        new DemoScenarioOrderPreview(
+            "RF-1050",
+            [new DemoScenarioOrderItemPreview("LAMP-ARC", "Arc floor lamp", 3, 1, 0, 2)]));
 
     public static S01FixtureData Create(
         string sessionId,

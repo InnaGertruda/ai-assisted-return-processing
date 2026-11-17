@@ -17,6 +17,8 @@ public static class DemoEndpoints
         group.MapGet("/sessions/{sessionId}/orders/{orderId}", GetOrderAsync);
         group.MapGet("/sessions/{sessionId}/return-cases", GetReturnCasesAsync);
         group.MapPost("/sessions/{sessionId}/reset", ResetSessionAsync);
+        group.MapPost("/sessions/{sessionId}/ai-runs", RunInterpretationAsync);
+        group.MapGet("/sessions/{sessionId}/ai-runs/{runId}", GetInterpretationAsync);
 
         return endpoints;
     }
@@ -90,8 +92,54 @@ public static class DemoEndpoints
 
     private static IResult NotFound() =>
         Results.NotFound(new DemoApiError(DemoResourceNotFoundException.SafeReasonCode));
+
+    private static async Task<IResult> RunInterpretationAsync(
+        string sessionId,
+        RunInterpretationRequest request,
+        ReturnInterpretationPipeline pipeline,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await pipeline.RunAsync(
+                new InterpretReturnMessageRequest(
+                    sessionId,
+                    request.SelectedOrderId,
+                    request.SubmissionKey,
+                    request.Message,
+                    request.Mode),
+                cancellationToken);
+            return Results.Ok(result);
+        }
+        catch (AiResourceNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    private static async Task<IResult> GetInterpretationAsync(
+        string sessionId,
+        string runId,
+        ReturnInterpretationPipeline pipeline,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Results.Ok(await pipeline.GetAsync(sessionId, runId, cancellationToken));
+        }
+        catch (AiResourceNotFoundException)
+        {
+            return NotFound();
+        }
+    }
 }
 
 public sealed record CreateDemoSessionRequest(string ScenarioId);
+
+public sealed record RunInterpretationRequest(
+    string SelectedOrderId,
+    string SubmissionKey,
+    string Message,
+    string Mode);
 
 public sealed record DemoApiError(string ReasonCode);

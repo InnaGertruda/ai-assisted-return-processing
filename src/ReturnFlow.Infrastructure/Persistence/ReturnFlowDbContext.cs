@@ -18,6 +18,8 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
 
     public DbSet<ReturnItem> ReturnItems => Set<ReturnItem>();
 
+    public DbSet<AiTraceRecord> AiTraces => Set<AiTraceRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DemoSession>(entity =>
@@ -29,6 +31,21 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
             entity.Property(x => x.CreatedAt).HasConversion<long>();
             entity.Property(x => x.ExpiresAt).HasConversion<long>();
             entity.HasIndex(x => x.ExpiresAt);
+        });
+
+        modelBuilder.Entity<AiTraceRecord>(entity =>
+        {
+            entity.ToTable("AiExecutionTraces");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasMaxLength(80);
+            entity.Property(x => x.DemoSessionId).HasMaxLength(64);
+            entity.Property(x => x.ReceivedAt).HasConversion<long>();
+            entity.Property(x => x.PayloadJson).HasMaxLength(32_000);
+            entity.HasIndex(x => new { x.DemoSessionId, x.ReceivedAt });
+            entity.HasOne<DemoSession>()
+                .WithMany()
+                .HasForeignKey(x => x.DemoSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<DemoOrder>(entity =>

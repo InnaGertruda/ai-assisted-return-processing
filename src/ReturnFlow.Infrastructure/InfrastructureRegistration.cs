@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ReturnFlow.Application;
+using ReturnFlow.Infrastructure.Ai;
 using ReturnFlow.Infrastructure.DemoData;
 using ReturnFlow.Infrastructure.Persistence;
 
@@ -18,6 +19,8 @@ public static class InfrastructureRegistration
 
         services.AddDbContext<ReturnFlowDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IDemoDataStore, SqliteDemoDataStore>();
+        services.AddSingleton<IReturnIntentInterpreter, ReplayReturnIntentInterpreter>();
+        services.AddScoped<IReturnInterpretationStore, SqliteReturnInterpretationStore>();
         services.AddScoped<IReturnFlowDatabaseInitializer, ReturnFlowDatabaseInitializer>();
         return services;
     }

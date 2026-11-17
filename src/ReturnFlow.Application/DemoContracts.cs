@@ -4,7 +4,23 @@ public sealed record DemoScenarioSummary(
     string Id,
     string Name,
     string Description,
-    string FixtureVersion);
+    string FixtureVersion,
+    string Message,
+    string ExpectedOutcome,
+    string ExpectedExplanation,
+    DemoScenarioOrderPreview Order);
+
+public sealed record DemoScenarioOrderPreview(
+    string DisplayNumber,
+    IReadOnlyList<DemoScenarioOrderItemPreview> Items);
+
+public sealed record DemoScenarioOrderItemPreview(
+    string ProductCode,
+    string ProductName,
+    int PurchasedQuantity,
+    int ActiveAllocatedQuantity,
+    int CompletedConsumedQuantity,
+    int AvailableQuantity);
 
 public sealed record DemoSessionSnapshot(
     string SessionId,

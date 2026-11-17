@@ -12,6 +12,21 @@ public sealed class ReturnFlowDbContextModelSnapshot : ModelSnapshot
     {
         modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
+        modelBuilder.Entity<AiTraceRecord>(entity =>
+        {
+            entity.ToTable("AiExecutionTraces");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).IsRequired().HasMaxLength(80);
+            entity.Property(x => x.DemoSessionId).IsRequired().HasMaxLength(64);
+            entity.Property(x => x.ReceivedAt).IsRequired().HasConversion<long>();
+            entity.Property(x => x.PayloadJson).IsRequired().HasMaxLength(32_000);
+            entity.HasIndex(x => new { x.DemoSessionId, x.ReceivedAt });
+            entity.HasOne<DemoSession>()
+                .WithMany()
+                .HasForeignKey(x => x.DemoSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<DemoSession>(entity =>
         {
             entity.ToTable("DemoSessions");
