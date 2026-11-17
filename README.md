@@ -2,7 +2,7 @@
 
 AI-Assisted Return Processing is a public architecture portfolio demo showing how an application can keep natural-language interpretation separate from trusted verification and business decisions.
 
-The current implementation is **Stage AI-3**: a .NET 10 API, isolated fictional demo sessions backed by SQLite, eleven exact-match Replay fixtures, strict proposal/evidence verification, authoritative transactional revalidation, idempotent Return Case creation, safe persisted traces, and a minimal Vue 3 execution inspector. Replay makes no live-provider calls. `Accepted` is emitted only after the submission, case, items, decision evidence, idempotency record, and trace commit atomically.
+The current implementation is **Stage AI-4**: a .NET 10 API, isolated fictional demo sessions backed by SQLite, eleven exact-match Replay fixtures, strict proposal/evidence verification, authoritative transactional revalidation, idempotent Return Case creation, safe persisted traces, and an interactive Vue 3 simulator and execution inspector. Replay makes no live-provider calls. `Accepted` is emitted only after the submission, case, items, decision evidence, idempotency record, and trace commit atomically.
 
 ## Prerequisites
 
@@ -87,7 +87,7 @@ npm run test
 npm run build
 ```
 
-`npm run build` includes TypeScript checking. The frontend's optional `VITE_API_BASE_URL` is documented in [`.env.example`](.env.example); the AI-3 simulator uses it for the session and Replay-run APIs.
+`npm run build` includes TypeScript checking. The frontend's optional `VITE_API_BASE_URL` is documented in [`.env.example`](.env.example); the AI-4 simulator uses it for scenario, session, order, return-case, reset, and Replay-run APIs. A selected scenario keeps the same isolated session across repeated runs until reset or another scenario is selected.
 
 ## Repository structure
 
@@ -102,4 +102,4 @@ npm run build
 
 ## Scope and safety
 
-All demo data is fictional. Replay model output remains an untrusted proposal; only deterministic verification and the write-reserved SQLite transaction can authorize a Return Case. Identical retries return the original logical result, conflicting key reuse is rejected, and capacity is re-read inside the transaction. Optional Live integration, richer AI-4 interaction, and deployment remain later reviewed stages.
+All demo data is fictional. Replay model output remains an untrusted proposal; only deterministic verification and the write-reserved SQLite transaction can authorize a Return Case. Identical retries return the original logical result, conflicting key reuse is rejected, and capacity is re-read inside the transaction. Optional Live integration and deployment remain later reviewed stages.

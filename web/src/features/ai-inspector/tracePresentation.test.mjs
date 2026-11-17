@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { businessRuleById, businessRules } from './businessRules.mjs'
-import { outcomeLabel, stageTone } from './tracePresentation.mjs'
+import { outcomeExplanation, outcomeKind, outcomeLabel, stageTone } from './tracePresentation.mjs'
 
 test('dry-run outcome always includes the actual commit status', () => {
   assert.equal(
@@ -9,6 +9,12 @@ test('dry-run outcome always includes the actual commit status', () => {
     'EligibleForCommit · Not committed',
   )
   assert.equal(stageTone('Skipped'), 'text-white/45')
+})
+
+test('business rejection and technical failure are presented as different outcomes', () => {
+  assert.equal(outcomeKind({ finalOutcome: 'CannotProceed', commitStatus: 'Not committed' }), 'business-rejection')
+  assert.equal(outcomeKind({ finalOutcome: 'TechnicalFailure', commitStatus: 'Not committed' }), 'technical-failure')
+  assert.match(outcomeExplanation({ finalOutcome: 'TechnicalFailure', commitStatus: 'Not committed' }), /failed technically/)
 })
 
 test('accepted outcome is labeled with committed state', () => {
