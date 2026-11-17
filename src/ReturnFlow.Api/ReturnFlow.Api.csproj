@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>ReturnFlow.Api-5c284245-6fc2-450b-a111-f631c35750e4</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ReturnFlow.Application/ReturnFlow.Application.csproj" />
+    <ProjectReference Include="../ReturnFlow.Infrastructure/ReturnFlow.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

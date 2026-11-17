@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ReturnFlow.Api/ReturnFlow.Api.csproj" />
+    <Project Path="src/ReturnFlow.Application/ReturnFlow.Application.csproj" />
+    <Project Path="src/ReturnFlow.Domain/ReturnFlow.Domain.csproj" />
+    <Project Path="src/ReturnFlow.Infrastructure/ReturnFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ReturnFlow.IntegrationTests/ReturnFlow.IntegrationTests.csproj" />
+    <Project Path="tests/ReturnFlow.UnitTests/ReturnFlow.UnitTests.csproj" />
+  </Folder>
+</Solution>
