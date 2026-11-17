@@ -38,6 +38,33 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+
+# Local agent instructions and implementation evidence
+/AGENTS.md
+/CODEX_START.md
+/docs/stage-reports/
+/scenarios/README.md
+
+# Local databases and SQLite sidecars
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Frontend dependencies and build output
+node_modules/
+web/dist/
+web/coverage/
+
+# IDE and user-specific files
+.vs/
+.vscode/
+*.user
+*.suo
 
 # Others
 ~$*
