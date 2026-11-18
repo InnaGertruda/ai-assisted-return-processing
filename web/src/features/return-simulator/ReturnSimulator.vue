@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { createSession, getOrder, getReturnCases, getScenarioCatalog, resetSession, runReplay } from './demoApi.mjs'
+import { createSession, getLiveStatus, getOrder, getReturnCases, getScenarioCatalog, resetSession, runInterpretation } from './demoApi.mjs'
 import { requestBodyPreview } from './scenarioPresentation.mjs'
 import { quantityChanges } from './scenarioPresentation.mjs'
 import { createSubmissionWorkflow } from './submissionWorkflow.mjs'
@@ -10,6 +10,9 @@ const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 /** @type {import('vue').Ref<any[]>} */
 const scenarios = ref([])
 const selectedId = ref('S01')
+/** @type {import('vue').Ref<'Replay' | 'Live'>} */
+const mode = ref('Replay')
+const liveEnabled = ref(false)
 /** @type {import('vue').Ref<any>} */
 const session = ref(null)
 /** @type {import('vue').Ref<any>} */
@@ -23,7 +26,7 @@ const sessionLoading = ref(false)
 const running = ref(false)
 const resetting = ref(false)
 const error = ref('')
-/** @type {import('vue').Ref<Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string }> | null>} */
+/** @type {import('vue').Ref<Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string, mode: 'Replay' | 'Live' }> | null>} */
 const lastSubmissionRequest = ref(null)
 let sessionRequest = 0
 
@@ -37,7 +40,7 @@ const submissionWorkflow = createSubmissionWorkflow({
 
 const selectedScenario = computed(() => scenarios.value.find((item) => item.id === selectedId.value))
 const message = computed(() => selectedScenario.value?.message ?? '')
-const requestPreview = computed(() => requestBodyPreview(selectedScenario.value))
+const requestPreview = computed(() => requestBodyPreview(selectedScenario.value, mode.value))
 const busy = computed(() => catalogLoading.value || sessionLoading.value || running.value || resetting.value)
 const canRetry = computed(() => Boolean(lastSubmissionRequest.value))
 const acceptedResult = computed(() => {
@@ -47,7 +50,12 @@ const acceptedResult = computed(() => {
 
 onMounted(async () => {
   try {
-    scenarios.value = await getScenarioCatalog(fetch, apiBase)
+    const [catalog, liveStatus] = await Promise.all([
+      getScenarioCatalog(fetch, apiBase),
+      getLiveStatus(fetch, apiBase),
+    ])
+    scenarios.value = catalog
+    liveEnabled.value = Boolean(liveStatus.enabled)
     if (scenarios.value.length && !scenarios.value.some((item) => item.id === selectedId.value)) {
       selectedId.value = scenarios.value[0].id
     }
@@ -61,6 +69,13 @@ onMounted(async () => {
 
 watch(selectedId, async () => {
   if (!catalogLoading.value) await startSession()
+})
+
+watch(mode, () => {
+  lastExecution.value = null
+  submissionWorkflow.clear()
+  lastSubmissionRequest.value = null
+  emit('execution', undefined)
 })
 
 async function startSession() {
@@ -90,7 +105,7 @@ async function startSession() {
   }
 }
 
-/** @param {Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string }>} request */
+/** @param {Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string, mode: 'Replay' | 'Live' }>} request */
 async function executeRequest(request) {
   if (!session.value || !order.value) return undefined
   error.value = ''
@@ -98,7 +113,7 @@ async function executeRequest(request) {
   const beforeOrder = JSON.parse(JSON.stringify(order.value))
 
   try {
-    const trace = await runReplay(fetch, apiBase, request)
+    const trace = await runInterpretation(fetch, apiBase, request)
     const [afterOrder, cases] = await Promise.all([
       getOrder(fetch, apiBase, activeSession.sessionId, activeSession.order.id),
       getReturnCases(fetch, apiBase, activeSession.sessionId),
@@ -115,7 +130,7 @@ async function executeRequest(request) {
     emit('execution', lastExecution.value)
     return lastExecution.value
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'The Replay run could not be completed.'
+    error.value = reason instanceof Error ? reason.message : `${request.mode} run could not be completed.`
     return undefined
   }
 }
@@ -127,6 +142,7 @@ async function submitNew() {
       sessionId: session.value.sessionId,
       orderId: session.value.order.id,
       message: message.value,
+      mode: mode.value,
     })
   } finally {
     lastSubmissionRequest.value = submissionWorkflow.lastRequest
@@ -166,7 +182,7 @@ async function reset() {
         <p class="text-xs font-semibold uppercase tracking-[0.16em] text-moss/60">Interactive input</p>
         <h2 id="simulator-title" class="mt-2 text-2xl font-semibold tracking-tight text-ink">Return Simulator</h2>
       </div>
-      <span class="rounded-full bg-limewash px-3 py-1 text-xs font-semibold text-moss">Replay · no AI call</span>
+      <span class="rounded-full bg-limewash px-3 py-1 text-xs font-semibold text-moss">{{ mode === 'Replay' ? 'Replay · no AI call' : 'Live · external AI call' }}</span>
     </div>
 
     <p class="mt-4 text-sm leading-6 text-ink/60">
@@ -189,6 +205,20 @@ async function reset() {
       </button>
     </div>
     <p class="mt-2 text-xs leading-5 text-ink/45">{{ selectedScenario?.description }}</p>
+
+    <fieldset class="mt-5 rounded-2xl border border-black/10 p-4">
+      <legend class="px-1 text-sm font-medium text-ink">Interpretation mode</legend>
+      <div class="mt-1 grid gap-2 sm:grid-cols-2">
+        <label class="flex cursor-pointer gap-3 rounded-xl bg-mist p-3 text-sm">
+          <input v-model="mode" type="radio" value="Replay" :disabled="busy">
+          <span><strong class="block">Replay</strong><span class="text-xs text-ink/50">Fixed fixture, no provider request.</span></span>
+        </label>
+        <label :class="liveEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'" class="flex gap-3 rounded-xl bg-mist p-3 text-sm">
+          <input v-model="mode" type="radio" value="Live" :disabled="busy || !liveEnabled">
+          <span><strong class="block">Live Groq</strong><span class="text-xs text-ink/50">{{ liveEnabled ? 'Explicit opt-in; server quotas apply.' : 'Disabled by backend configuration.' }}</span></span>
+        </label>
+      </div>
+    </fieldset>
 
     <div v-if="sessionLoading" role="status" class="mt-5 rounded-2xl bg-mist p-5 text-sm text-ink/60">Creating an isolated fictional session…</div>
 
@@ -217,7 +247,7 @@ async function reset() {
         <div class="rounded-xl border border-black/5 p-3">
           <div class="flex items-center justify-between gap-3"><p class="text-xs font-medium text-ink/45">Fixed customer message</p><span class="text-[11px] text-ink/40">Fixture v{{ selectedScenario?.fixtureVersion }}</span></div>
           <p class="mt-2 text-sm leading-5 text-ink">“{{ message }}”</p>
-          <p class="mt-2 text-[11px] leading-4 text-ink/40">Replay accepts this exact text only; arbitrary text is not presented as model output.</p>
+          <p class="mt-2 text-[11px] leading-4 text-ink/40">{{ mode === 'Replay' ? 'Replay accepts this exact text only; arbitrary text is not presented as model output.' : 'Live sends this fictional text and scoped order context to the configured provider; its response remains an untrusted proposal.' }}</p>
         </div>
 
         <details class="rounded-xl border border-black/5 px-3 py-3">
@@ -245,7 +275,7 @@ async function reset() {
       </dl>
     </div>
 
-    <div class="mt-4 rounded-2xl border border-black/10 px-4 py-2 text-xs text-ink/50"><span class="font-semibold text-ink/65">Mode</span> · Replay <span aria-label="Live mode unavailable">· Live unavailable</span></div>
+    <div class="mt-4 rounded-2xl border border-black/10 px-4 py-2 text-xs text-ink/50"><span class="font-semibold text-ink/65">Mode</span> · {{ mode }} <span v-if="mode === 'Live'">· provider output independently verified</span></div>
 
     <p v-if="error" role="alert" class="mt-4 rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{{ error }}</p>
     <p class="mt-4 text-xs leading-5 text-ink/45">Simulation only · no refund, shipment, payment, or legal eligibility decision · Accepted means only that a fictional Return Case committed</p>

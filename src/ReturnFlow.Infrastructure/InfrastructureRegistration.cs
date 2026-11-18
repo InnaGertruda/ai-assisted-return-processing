@@ -12,14 +12,25 @@ public static class InfrastructureRegistration
 {
     public static IServiceCollection AddReturnFlowInfrastructure(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString,
+        LiveModelOptions? liveModelOptions = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         EnsureDatabaseDirectory(connectionString);
+        var resolvedLiveOptions = liveModelOptions ?? LiveModelOptions.Disabled;
+        resolvedLiveOptions.Validate();
 
         services.AddDbContext<ReturnFlowDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IDemoDataStore, SqliteDemoDataStore>();
-        services.AddSingleton<IReturnIntentInterpreter, ReplayReturnIntentInterpreter>();
+        services.AddSingleton(resolvedLiveOptions);
+        services.AddSingleton(new HttpClient
+        {
+            MaxResponseContentBufferSize = 64 * 1024,
+        });
+        services.AddSingleton<ReplayReturnIntentInterpreter>();
+        services.AddScoped<ILiveUsageLimiter, SqliteLiveUsageLimiter>();
+        services.AddScoped<GroqReturnIntentInterpreter>();
+        services.AddScoped<IReturnIntentInterpreter, ModeRoutingReturnIntentInterpreter>();
         services.AddScoped<IReturnInterpretationStore, SqliteReturnInterpretationStore>();
         services.AddScoped<IReturnFlowDatabaseInitializer, ReturnFlowDatabaseInitializer>();
         return services;

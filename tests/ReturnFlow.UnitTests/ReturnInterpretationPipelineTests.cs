@@ -110,15 +110,134 @@ public sealed class ReturnInterpretationPipelineTests
         Assert.Empty(store.Traces);
     }
 
+    [Fact]
+    public async Task Valid_live_proposal_uses_shared_verification_before_commit()
+    {
+        const string output =
+            """
+            {"schemaVersion":"1.0","intent":"CreateReturn","items":[{"candidateOrderItemId":"item-1","productMention":"lamp","requestedQuantity":1,"reason":"Unspecified","evidenceQuotes":["one lamp"]}],"ambiguities":[],"requiresClarification":false}
+            """;
+        var pipeline = new ReturnInterpretationPipeline(
+            new StubInterpreter(output, AiContractVersions.LivePrompt),
+            new MemoryStore(Context),
+            TimeProvider.System);
+
+        var trace = await pipeline.RunAsync(LiveRequest("I want to return one lamp."));
+
+        Assert.Equal("Live", trace.Mode);
+        Assert.Equal(AiContractVersions.LivePrompt, trace.PromptVersion);
+        Assert.Equal("Accepted", trace.FinalOutcome);
+        Assert.Equal("Committed", trace.CommitStatus);
+        Assert.Contains(trace.Stages, x => x.Stage == "GroundingVerification" && x.Status == "Passed");
+        Assert.Contains(trace.Stages, x => x.Stage == "BusinessValidation" && x.Status == "Passed");
+    }
+
+    [Theory]
+    [InlineData(
+        "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"hallucinated-item\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"one lamp\"]}],\"ambiguities\":[],\"requiresClarification\":false}",
+        "ManualReview",
+        "ITEM_ID_NOT_IN_CONTEXT")]
+    [InlineData(
+        "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[{\"candidateOrderItemId\":\"item-1\",\"productMention\":\"lamp\",\"requestedQuantity\":1,\"reason\":\"Unspecified\",\"evidenceQuotes\":[\"not in message\"]}],\"ambiguities\":[],\"requiresClarification\":false}",
+        "ClarificationRequired",
+        "EVIDENCE_QUOTE_NOT_PRESENT")]
+    [InlineData(
+        "{\"schemaVersion\":\"1.0\",\"intent\":\"CreateReturn\",\"items\":[],\"ambiguities\":[\"item unclear\"],\"requiresClarification\":true}",
+        "ClarificationRequired",
+        "AMBIGUITY_UNRESOLVED")]
+    public async Task Untrusted_live_output_cannot_bypass_grounding(
+        string output,
+        string expectedOutcome,
+        string expectedReason)
+    {
+        var pipeline = new ReturnInterpretationPipeline(
+            new StubInterpreter(output, AiContractVersions.LivePrompt),
+            new MemoryStore(Context),
+            TimeProvider.System);
+
+        var trace = await pipeline.RunAsync(LiveRequest("I want to return one lamp."));
+
+        Assert.Equal(expectedOutcome, trace.FinalOutcome);
+        Assert.Equal("Not committed", trace.CommitStatus);
+        Assert.Null(trace.CreatedReturnCaseId);
+        Assert.Contains(expectedReason, trace.Stages.Single(x => x.Stage == "GroundingVerification").ReasonCodes);
+        Assert.Equal("Skipped", trace.Stages.Single(x => x.Stage == "Commit").Status);
+    }
+
+    [Fact]
+    public async Task Live_model_cannot_authorize_unsupported_operation()
+    {
+        const string output =
+            """
+            {"schemaVersion":"1.0","intent":"CancelReturn","items":[],"ambiguities":[],"requiresClarification":false}
+            """;
+        var pipeline = new ReturnInterpretationPipeline(
+            new StubInterpreter(output, AiContractVersions.LivePrompt),
+            new MemoryStore(Context),
+            TimeProvider.System);
+
+        var trace = await pipeline.RunAsync(LiveRequest("Cancel my earlier return."));
+
+        Assert.Equal("CannotProceed", trace.FinalOutcome);
+        Assert.Equal("Not committed", trace.CommitStatus);
+        Assert.Null(trace.CreatedReturnCaseId);
+        Assert.Contains(
+            "INTENT_NOT_SUPPORTED_IN_V1",
+            trace.Stages.Single(x => x.Stage == "BusinessValidation").ReasonCodes);
+    }
+
+    [Fact]
+    public async Task Live_quantity_must_match_explicit_evidence()
+    {
+        const string output =
+            """
+            {"schemaVersion":"1.0","intent":"CreateReturn","items":[{"candidateOrderItemId":"item-1","productMention":"lamp","requestedQuantity":2,"reason":"Unspecified","evidenceQuotes":["one lamp"]}],"ambiguities":[],"requiresClarification":false}
+            """;
+        var pipeline = new ReturnInterpretationPipeline(
+            new StubInterpreter(output, AiContractVersions.LivePrompt),
+            new MemoryStore(Context),
+            TimeProvider.System);
+
+        var trace = await pipeline.RunAsync(LiveRequest("I want to return one lamp."));
+
+        Assert.Equal("ClarificationRequired", trace.FinalOutcome);
+        Assert.Contains(
+            "QUANTITY_EVIDENCE_CONFLICT",
+            trace.Stages.Single(x => x.Stage == "GroundingVerification").ReasonCodes);
+        Assert.Null(trace.CreatedReturnCaseId);
+    }
+
+    [Fact]
+    public async Task Malformed_live_json_is_a_technical_failure_without_commit()
+    {
+        var pipeline = new ReturnInterpretationPipeline(
+            new StubInterpreter("not-json", AiContractVersions.LivePrompt),
+            new MemoryStore(Context),
+            TimeProvider.System);
+
+        var trace = await pipeline.RunAsync(LiveRequest("I want to return one lamp."));
+
+        Assert.Equal("TechnicalFailure", trace.FinalOutcome);
+        Assert.Equal("Not committed", trace.CommitStatus);
+        Assert.Contains(
+            "MODEL_OUTPUT_SCHEMA_INVALID",
+            trace.Stages.Single(x => x.Stage == "SchemaVerification").ReasonCodes);
+    }
+
     private static InterpretReturnMessageRequest Request(string message) =>
         new("session-1", "order-1", "submission-1", message, "Replay");
 
-    private sealed class StubInterpreter(string output) : IReturnIntentInterpreter
+    private static InterpretReturnMessageRequest LiveRequest(string message) =>
+        new("session-1", "order-1", "submission-live", message, "Live", "client-1");
+
+    private sealed class StubInterpreter(
+        string output,
+        string promptVersion = AiContractVersions.ReplayPrompt) : IReturnIntentInterpreter
     {
         public Task<InterpreterResult> InterpretAsync(
             InterpreterRequest request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new InterpreterResult(true, output, null));
+            Task.FromResult(new InterpreterResult(true, output, null, promptVersion));
     }
 
     private sealed class CountingInterpreter : IReturnIntentInterpreter

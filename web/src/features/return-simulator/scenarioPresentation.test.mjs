@@ -27,3 +27,9 @@ test('quantity changes compare actual before and after order summaries', () => {
     },
   ])
 })
+
+test('request preview labels explicit Live opt-in', () => {
+  const preview = JSON.parse(requestBodyPreview({ message: 'Return one lamp.' }, 'Live'))
+
+  assert.equal(preview.mode, 'Live')
+})

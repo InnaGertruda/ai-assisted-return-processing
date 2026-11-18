@@ -47,6 +47,7 @@ ScaffoldingReadMe.txt
 /docs/stage-reports/*
 !/docs/stage-reports/AI-3.md
 !/docs/stage-reports/AI-4.md
+!/docs/stage-reports/AI-5.md
 /scenarios/README.md
 
 # Local databases and SQLite sidecars

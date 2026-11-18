@@ -2,14 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createSubmissionWorkflow } from './submissionWorkflow.mjs'
 
+/** @type {{ sessionId: string, orderId: string, message: string, mode: 'Replay' }} */
 const input = {
   sessionId: 'session-1',
   orderId: 'order-1',
   message: 'I want to return one more lamp.',
+  mode: 'Replay',
 }
 
 test('new submissions get new keys while retry reuses the identical request object', async () => {
-  /** @type {Array<Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string }>>} */
+  /** @type {Array<Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string, mode: 'Replay' | 'Live' }>>} */
   const requests = []
   const keys = ['key-1', 'key-2']
   const workflow = createSubmissionWorkflow({
@@ -25,6 +27,7 @@ test('new submissions get new keys while retry reuses the identical request obje
   assert.strictEqual(requests[0], requests[1])
   assert.equal(requests[0].submissionKey, 'key-1')
   assert.equal(requests[1].message, input.message)
+  assert.equal(requests[1].mode, 'Replay')
   assert.equal(requests[2].submissionKey, 'key-2')
   assert.notStrictEqual(requests[0], requests[2])
 })

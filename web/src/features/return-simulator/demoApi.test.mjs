@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createSession, getOrder, getReturnCases, resetSession, runReplay } from './demoApi.mjs'
+import { createSession, getLiveStatus, getOrder, getReturnCases, resetSession, runInterpretation, runReplay } from './demoApi.mjs'
 
 /** @param {any} body @param {number} status */
 function jsonResponse(body, status = 200) {
@@ -75,5 +75,28 @@ test('API reason codes are preserved in visible errors', async () => {
     }),
     /SUBMISSION_KEY_PAYLOAD_CONFLICT/,
   )
+})
+
+test('Live capability and explicit mode come only from backend contracts', async () => {
+  /** @type {Array<{ url: string, options: RequestInit }>} */
+  const calls = []
+  /** @param {string} url @param {RequestInit} options */
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, options })
+    if (url.endsWith('/live-status')) return jsonResponse({ enabled: true })
+    return jsonResponse({ runId: 'live-run', mode: 'Live', finalOutcome: 'TechnicalFailure' })
+  }
+
+  const status = await getLiveStatus(fetcher, '')
+  await runInterpretation(fetcher, '', {
+    sessionId: 'session-1',
+    orderId: 'order-1',
+    submissionKey: 'live-key',
+    message: 'Return one lamp.',
+    mode: 'Live',
+  })
+
+  assert.equal(status.enabled, true)
+  assert.equal(JSON.parse(String(calls[1].options.body)).mode, 'Live')
 })
 

@@ -1,11 +1,11 @@
-/** @param {{ message?: string } | undefined} scenario */
-export function requestBodyPreview(scenario) {
+/** @param {{ message?: string } | undefined} scenario @param {'Replay' | 'Live'} mode */
+export function requestBodyPreview(scenario, mode = 'Replay') {
   return JSON.stringify(
     {
       selectedOrderId: '<created from this order on Run>',
       submissionKey: '<generated for a new submission; reused for retry>',
       message: scenario?.message ?? '',
-      mode: 'Replay',
+      mode,
     },
     null,
     2,

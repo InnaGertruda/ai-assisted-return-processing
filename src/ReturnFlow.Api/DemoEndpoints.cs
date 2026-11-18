@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
 using ReturnFlow.Application;
+using ReturnFlow.Infrastructure.Ai;
 
 namespace ReturnFlow.Api;
 
@@ -12,6 +15,8 @@ public static class DemoEndpoints
             DemoSessionService service,
             CancellationToken cancellationToken) =>
             Results.Ok(await service.GetScenariosAsync(cancellationToken)));
+        group.MapGet("/live-status", (LiveModelOptions options) =>
+            Results.Ok(new LiveModeStatus(options.Enabled)));
 
         group.MapPost("/sessions", CreateSessionAsync);
         group.MapGet("/sessions/{sessionId}/orders/{orderId}", GetOrderAsync);
@@ -96,6 +101,7 @@ public static class DemoEndpoints
     private static async Task<IResult> RunInterpretationAsync(
         string sessionId,
         RunInterpretationRequest request,
+        HttpContext httpContext,
         ReturnInterpretationPipeline pipeline,
         CancellationToken cancellationToken)
     {
@@ -107,7 +113,8 @@ public static class DemoEndpoints
                     request.SelectedOrderId,
                     request.SubmissionKey,
                     request.Message,
-                    request.Mode),
+                    request.Mode,
+                    ClientPartition(httpContext)),
                 cancellationToken);
             return Results.Ok(result);
         }
@@ -119,6 +126,13 @@ public static class DemoEndpoints
         {
             return Results.Conflict(new DemoApiError(AiSubmissionConflictException.SafeReasonCode));
         }
+    }
+
+    private static string ClientPartition(HttpContext httpContext)
+    {
+        var address = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unavailable";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(address)))
+            .ToLowerInvariant();
     }
 
     private static async Task<IResult> GetInterpretationAsync(
@@ -147,3 +161,5 @@ public sealed record RunInterpretationRequest(
     string Mode);
 
 public sealed record DemoApiError(string ReasonCode);
+
+public sealed record LiveModeStatus(bool Enabled);

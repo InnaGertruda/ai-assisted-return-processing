@@ -5,7 +5,9 @@ namespace ReturnFlow.Application;
 public static class AiContractVersions
 {
     public const string Schema = "1.0";
-    public const string Prompt = "replay-return-intent-v1";
+    public const string ReplayPrompt = "replay-return-intent-v1";
+    public const string LivePrompt = "live-return-intent-v1";
+    public const string Prompt = ReplayPrompt;
 }
 
 public sealed record InterpretReturnMessageRequest(
@@ -13,7 +15,8 @@ public sealed record InterpretReturnMessageRequest(
     string SelectedOrderId,
     string SubmissionKey,
     string Message,
-    string Mode);
+    string Mode,
+    string ClientPartition = "unavailable");
 
 public sealed class ReturnIntentProposalV1
 {
@@ -75,9 +78,15 @@ public sealed record ReturnInterpretationContext(
 public sealed record InterpreterRequest(
     string ScenarioId,
     string Message,
-    ReturnInterpretationContext Context);
+    ReturnInterpretationContext Context,
+    string Mode = "Replay",
+    string ClientPartition = "unavailable");
 
-public sealed record InterpreterResult(bool Matched, string? RawOutput, string? FailureReasonCode);
+public sealed record InterpreterResult(
+    bool Matched,
+    string? RawOutput,
+    string? FailureReasonCode,
+    string PromptVersion = AiContractVersions.ReplayPrompt);
 
 public interface IReturnIntentInterpreter
 {
@@ -85,6 +94,17 @@ public interface IReturnIntentInterpreter
         InterpreterRequest request,
         CancellationToken cancellationToken);
 }
+
+public interface ILiveUsageLimiter
+{
+    Task<LiveUsageDecision> TryAcquireAsync(
+        string sessionId,
+        string clientPartition,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+}
+
+public sealed record LiveUsageDecision(bool Allowed, string? FailureReasonCode = null);
 
 public interface IReturnInterpretationStore
 {

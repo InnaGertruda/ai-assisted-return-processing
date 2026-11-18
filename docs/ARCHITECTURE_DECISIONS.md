@@ -131,6 +131,18 @@
 
 **Evidence:** `AtomicReturnApiTests` uses real temporary SQLite files and independent HTTP scopes/connections to prove S01, S03, S04, S05, parallel identical requests, S10 final-unit contention, multi-line all-or-nothing rejection, and rollback after an injected decision-record failure. `MigrationModelTests` proves the versioned model matches the migration snapshot.
 
+## ADR-012 — Disabled-by-default Groq adapter with persistent local usage reservations
+
+**Status:** Accepted for AI-5 local implementation; public enablement remains unapproved.
+
+**Decision:** Route `Replay` and `Live` through one `IReturnIntentInterpreter` boundary and the same schema, grounding, business and transactional pipeline. The Live implementation performs one backend-only Groq Chat Completions request using strict structured output, a configuration-selected model, a hard output-token cap and a short timeout. It never retries automatically. Live is disabled by default and startup fails closed if enabled without valid backend configuration. Before an HTTP call, a SQLite write-reserved quota operation durably records the attempt and enforces per-session minute/day, hashed-client minute and global daily limits. Provider and quota failures become safe `TechnicalFailure` traces and cannot fall back silently to Replay.
+
+**Why:** A real provider path demonstrates that provider-shaped JSON remains an untrusted proposal, while durable quotas prevent process restarts or concurrent requests from resetting the global cost ceiling. A fixed backend endpoint and server-held credentials avoid exposing provider authority to the browser.
+
+**Trade-off:** A quota reservation counts even when the provider later fails, intentionally favoring spend protection over maximum availability. SQLite remains single-instance coordination. Model compatibility can change, so the model ID is backend configuration rather than tracked code; the owner must choose a current Groq model that supports the requested strict JSON schema. IP-derived partitions are one-way hashes and are used only for short-window abuse limits, not authentication. Public Live mode remains disabled until deployment-specific abuse controls and budgets are reviewed.
+
+**Evidence:** `GroqReturnIntentInterpreterTests`, Live cases in `ReturnInterpretationPipelineTests`, `LiveUsageLimitTests`, `AiLiveApiTests`, the unchanged Replay/API suites, and the AI-5 stage report.
+
 ---
 
 ## ADR hygiene
