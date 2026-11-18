@@ -88,6 +88,19 @@ public sealed class ReturnFlowDbContextModelSnapshot : ModelSnapshot
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<LiveModelUsageRecord>(entity =>
+        {
+            entity.ToTable("LiveModelUsageRecords");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).IsRequired().HasMaxLength(80);
+            entity.Property(x => x.DemoSessionId).IsRequired().HasMaxLength(64);
+            entity.Property(x => x.ClientPartition).IsRequired().HasMaxLength(64);
+            entity.Property(x => x.RequestedAt).IsRequired().HasConversion<long>();
+            entity.HasIndex(x => x.RequestedAt);
+            entity.HasIndex(x => new { x.DemoSessionId, x.RequestedAt });
+            entity.HasIndex(x => new { x.ClientPartition, x.RequestedAt });
+        });
+
         modelBuilder.Entity<OrderItem>(entity =>
         {
             entity.ToTable(

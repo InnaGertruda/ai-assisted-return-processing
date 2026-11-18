@@ -24,6 +24,12 @@ export async function getScenarioCatalog(fetcher, apiBase) {
   return readResponse(response, 'Scenario catalog could not be loaded.')
 }
 
+/** @param {DemoFetcher} fetcher @param {string} apiBase */
+export async function getLiveStatus(fetcher, apiBase) {
+  const response = await fetcher(url(apiBase, '/api/demo/live-status'))
+  return readResponse(response, 'Live mode status could not be loaded.')
+}
+
 /** @param {DemoFetcher} fetcher @param {string} apiBase @param {string} scenarioId */
 export async function createSession(fetcher, apiBase, scenarioId) {
   const response = await fetcher(url(apiBase, '/api/demo/sessions'), {
@@ -49,9 +55,9 @@ export async function getReturnCases(fetcher, apiBase, sessionId) {
 /**
  * @param {DemoFetcher} fetcher
  * @param {string} apiBase
- * @param {{ sessionId: string, orderId: string, submissionKey: string, message: string }} request
+ * @param {{ sessionId: string, orderId: string, submissionKey: string, message: string, mode: 'Replay' | 'Live' }} request
  */
-export async function runReplay(fetcher, apiBase, request) {
+export async function runInterpretation(fetcher, apiBase, request) {
   const response = await fetcher(url(apiBase, `/api/demo/sessions/${request.sessionId}/ai-runs`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -59,10 +65,20 @@ export async function runReplay(fetcher, apiBase, request) {
       selectedOrderId: request.orderId,
       submissionKey: request.submissionKey,
       message: request.message,
-      mode: 'Replay',
+      mode: request.mode,
     }),
   })
-  return readResponse(response, 'The Replay run could not be completed.')
+  return readResponse(response, `${request.mode} run could not be completed.`)
+}
+
+/**
+ * Backward-compatible Replay helper for the existing AI-4 API tests.
+ * @param {DemoFetcher} fetcher
+ * @param {string} apiBase
+ * @param {{ sessionId: string, orderId: string, submissionKey: string, message: string }} request
+ */
+export function runReplay(fetcher, apiBase, request) {
+  return runInterpretation(fetcher, apiBase, { ...request, mode: 'Replay' })
 }
 
 /** @param {DemoFetcher} fetcher @param {string} apiBase @param {string} sessionId */

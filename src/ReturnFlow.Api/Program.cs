@@ -6,13 +6,14 @@ using ReturnFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("ReturnFlow")
     ?? throw new InvalidOperationException("Connection string 'ReturnFlow' is required.");
+var liveModelOptions = LiveModelRuntimeSettings.FromConfiguration(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDemoSessionIdGenerator, GuidDemoSessionIdGenerator>();
 builder.Services.AddSingleton(serviceProvider =>
     DemoSessionRuntimeSettings.FromConfiguration(
         serviceProvider.GetRequiredService<IConfiguration>()));
-builder.Services.AddReturnFlowInfrastructure(connectionString);
+builder.Services.AddReturnFlowInfrastructure(connectionString, liveModelOptions);
 builder.Services.AddScoped(serviceProvider => new DemoSessionService(
     serviceProvider.GetRequiredService<IDemoDataStore>(),
     serviceProvider.GetRequiredService<IDemoSessionIdGenerator>(),

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ReturnFlow.Application;
 
@@ -90,7 +91,12 @@ public sealed class ReturnInterpretationPipeline(
         }
 
         var interpreted = await interpreter.InterpretAsync(
-            new InterpreterRequest(context.ScenarioId, request.Message.Trim(), context),
+            new InterpreterRequest(
+                context.ScenarioId,
+                request.Message.Trim(),
+                context,
+                NormalizeMode(request.Mode),
+                request.ClientPartition),
             cancellationToken);
         if (!interpreted.Matched || interpreted.RawOutput is null)
         {
@@ -100,15 +106,24 @@ public sealed class ReturnInterpretationPipeline(
                 "BR-RET-010"));
             AddSkipped(stages, "SchemaVerification", "GroundingVerification", "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages),
+                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages,
+                interpreted.PromptVersion),
                 request, payloadHash, cancellationToken);
         }
 
         stages.Add(Passed(
             "Interpretation",
-            "REPLAY_FIXTURE_MATCHED",
+            string.Equals(request.Mode, "Live", StringComparison.OrdinalIgnoreCase)
+                ? "LIVE_PROVIDER_RESPONSE_RECEIVED"
+                : "REPLAY_FIXTURE_MATCHED",
             "BR-RET-010",
-            new SafeEvidence("fixture", context.ScenarioId)));
+            new SafeEvidence(
+                string.Equals(request.Mode, "Live", StringComparison.OrdinalIgnoreCase)
+                    ? "providerMode"
+                    : "fixture",
+                string.Equals(request.Mode, "Live", StringComparison.OrdinalIgnoreCase)
+                    ? "Live"
+                    : context.ScenarioId)));
 
         ReturnIntentProposalV1? proposal;
         try
@@ -123,7 +138,8 @@ public sealed class ReturnInterpretationPipeline(
             stages.Add(Failed("SchemaVerification", "MODEL_OUTPUT_SCHEMA_INVALID", "BR-RET-010"));
             AddSkipped(stages, "GroundingVerification", "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages),
+                runId, request, context.ScenarioId, now, "TechnicalFailure", null, stages,
+                interpreted.PromptVersion),
                 request, payloadHash, cancellationToken);
         }
 
@@ -135,7 +151,8 @@ public sealed class ReturnInterpretationPipeline(
         {
             AddSkipped(stages, "BusinessValidation", "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, grounding.Outcome, proposal, stages),
+                runId, request, context.ScenarioId, now, grounding.Outcome, proposal, stages,
+                interpreted.PromptVersion),
                 request, payloadHash, cancellationToken);
         }
 
@@ -145,12 +162,14 @@ public sealed class ReturnInterpretationPipeline(
         {
             AddSkipped(stages, "Commit");
             return await SaveAsync(CreateTrace(
-                runId, request, context.ScenarioId, now, business.Outcome, proposal, stages),
+                runId, request, context.ScenarioId, now, business.Outcome, proposal, stages,
+                interpreted.PromptVersion),
                 request, payloadHash, cancellationToken);
         }
 
         var preCommitTrace = CreateTrace(
-            runId, request, context.ScenarioId, now, "EligibleForCommit", proposal, stages);
+            runId, request, context.ScenarioId, now, "EligibleForCommit", proposal, stages,
+            interpreted.PromptVersion);
         try
         {
             return await store.CommitAsync(
@@ -166,7 +185,8 @@ public sealed class ReturnInterpretationPipeline(
                 "BR-RET-004",
                 "BR-AUD-001"));
             var technicalFailure = CreateTrace(
-                runId, request, context.ScenarioId, now, "TechnicalFailure", proposal, stages);
+                runId, request, context.ScenarioId, now, "TechnicalFailure", proposal, stages,
+                interpreted.PromptVersion);
             return await SaveAsync(technicalFailure, request, payloadHash, cancellationToken);
         }
     }
@@ -198,13 +218,14 @@ public sealed class ReturnInterpretationPipeline(
         DateTimeOffset now,
         string outcome,
         ReturnIntentProposalV1? proposal,
-        IReadOnlyList<AiStageResult> stages) => new(
+        IReadOnlyList<AiStageResult> stages,
+        string? promptVersion = null) => new(
             runId,
             request.DemoSessionId.Trim(),
             scenarioId,
-            "Replay",
+            NormalizeMode(request.Mode),
             now,
-            AiContractVersions.Prompt,
+            promptVersion ?? PromptVersionFor(request.Mode),
             AiContractVersions.Schema,
             outcome,
             "Not committed",
@@ -224,7 +245,8 @@ public sealed class ReturnInterpretationPipeline(
 
     private static string? ValidateInput(InterpretReturnMessageRequest request)
     {
-        if (!string.Equals(request.Mode?.Trim(), "Replay", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(request.Mode?.Trim(), "Replay", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(request.Mode?.Trim(), "Live", StringComparison.OrdinalIgnoreCase))
         {
             return "MODE_NOT_SUPPORTED";
         }
@@ -241,6 +263,14 @@ public sealed class ReturnInterpretationPipeline(
 
         return null;
     }
+
+    private static string NormalizeMode(string? mode) =>
+        string.Equals(mode?.Trim(), "Live", StringComparison.OrdinalIgnoreCase) ? "Live" : "Replay";
+
+    private static string PromptVersionFor(string? mode) =>
+        string.Equals(mode?.Trim(), "Live", StringComparison.OrdinalIgnoreCase)
+            ? AiContractVersions.LivePrompt
+            : AiContractVersions.ReplayPrompt;
 
     private static void ValidateSchema(ReturnIntentProposalV1? proposal)
     {
@@ -326,6 +356,13 @@ public sealed class ReturnInterpretationPipeline(
                     Failed("GroundingVerification", "EVIDENCE_QUOTE_NOT_PRESENT", "BR-RET-008"),
                     "ClarificationRequired");
             }
+
+            if (!EvidenceSupportsQuantity(item.EvidenceQuotes, item.RequestedQuantity.Value))
+            {
+                return new VerificationResult(
+                    Failed("GroundingVerification", "QUANTITY_EVIDENCE_CONFLICT", "BR-RET-003", "BR-RET-008"),
+                    "ClarificationRequired");
+            }
         }
 
         return new VerificationResult(
@@ -335,6 +372,34 @@ public sealed class ReturnInterpretationPipeline(
                 "BR-RET-002",
                 "BR-RET-008"),
             null);
+    }
+
+    private static bool EvidenceSupportsQuantity(
+        IReadOnlyList<string> evidenceQuotes,
+        int requestedQuantity)
+    {
+        var wordValues = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["one"] = 1,
+            ["two"] = 2,
+            ["three"] = 3,
+            ["four"] = 4,
+            ["five"] = 5,
+            ["six"] = 6,
+            ["seven"] = 7,
+            ["eight"] = 8,
+        };
+        var quantities = evidenceQuotes
+            .SelectMany(quote => Regex.Matches(
+                quote,
+                @"\b(?:one|two|three|four|five|six|seven|eight|\d+)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            .Select(match => int.TryParse(match.Value, out var numeric)
+                ? numeric
+                : wordValues[match.Value])
+            .Distinct()
+            .ToArray();
+        return quantities.Length == 1 && quantities[0] == requestedQuantity;
     }
 
     private static VerificationResult ValidateBusiness(

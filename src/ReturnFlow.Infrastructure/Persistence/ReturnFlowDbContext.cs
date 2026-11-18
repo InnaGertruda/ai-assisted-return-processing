@@ -24,6 +24,8 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
 
     public DbSet<DecisionRecord> DecisionRecords => Set<DecisionRecord>();
 
+    public DbSet<LiveModelUsageRecord> LiveModelUsageRecords => Set<LiveModelUsageRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DemoSession>(entity =>
@@ -101,6 +103,19 @@ public sealed class ReturnFlowDbContext(DbContextOptions<ReturnFlowDbContext> op
                 .WithMany()
                 .HasForeignKey(x => x.AiExecutionTraceId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LiveModelUsageRecord>(entity =>
+        {
+            entity.ToTable("LiveModelUsageRecords");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasMaxLength(80);
+            entity.Property(x => x.DemoSessionId).HasMaxLength(64);
+            entity.Property(x => x.ClientPartition).HasMaxLength(64);
+            entity.Property(x => x.RequestedAt).HasConversion<long>();
+            entity.HasIndex(x => x.RequestedAt);
+            entity.HasIndex(x => new { x.DemoSessionId, x.RequestedAt });
+            entity.HasIndex(x => new { x.ClientPartition, x.RequestedAt });
         });
 
         modelBuilder.Entity<DemoOrder>(entity =>

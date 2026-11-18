@@ -22,6 +22,7 @@ export function createSubmissionWorkflow({ keyFactory, execute, onProcessingChan
       orderId: input.orderId,
       submissionKey: keyFactory(),
       message: input.message,
+      mode: input.mode,
     })
     return perform(lastRequest)
   }
@@ -57,5 +58,5 @@ export function createSubmissionWorkflow({ keyFactory, execute, onProcessingChan
   }
 }
 
-/** @typedef {{ sessionId: string, orderId: string, message: string }} SubmissionInput */
+/** @typedef {{ sessionId: string, orderId: string, message: string, mode: 'Replay' | 'Live' }} SubmissionInput */
 /** @typedef {SubmissionInput & { submissionKey: string }} SubmissionRequest */
