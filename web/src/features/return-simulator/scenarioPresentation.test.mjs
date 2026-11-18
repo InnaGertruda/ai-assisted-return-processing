@@ -6,7 +6,7 @@ test('request preview shows runtime identifiers as placeholders and preserves th
   const preview = JSON.parse(requestBodyPreview({ message: 'I want to return one more lamp.' }))
 
   assert.equal(preview.selectedOrderId, '<created from this order on Run>')
-  assert.equal(preview.submissionKey, '<generated on Run>')
+  assert.equal(preview.submissionKey, '<generated for a new submission; reused for retry>')
   assert.equal(preview.message, 'I want to return one more lamp.')
   assert.equal(preview.mode, 'Replay')
 })

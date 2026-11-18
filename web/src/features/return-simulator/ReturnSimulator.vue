@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { createSession, getOrder, getReturnCases, getScenarioCatalog, resetSession, runReplay } from './demoApi.mjs'
 import { requestBodyPreview } from './scenarioPresentation.mjs'
 import { quantityChanges } from './scenarioPresentation.mjs'
+import { createSubmissionWorkflow } from './submissionWorkflow.mjs'
 
 const emit = defineEmits(['execution'])
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -22,12 +23,27 @@ const sessionLoading = ref(false)
 const running = ref(false)
 const resetting = ref(false)
 const error = ref('')
+/** @type {import('vue').Ref<Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string }> | null>} */
+const lastSubmissionRequest = ref(null)
 let sessionRequest = 0
+
+const submissionWorkflow = createSubmissionWorkflow({
+  keyFactory: () => crypto.randomUUID(),
+  execute: executeRequest,
+  onProcessingChange: (processing) => {
+    running.value = processing
+  },
+})
 
 const selectedScenario = computed(() => scenarios.value.find((item) => item.id === selectedId.value))
 const message = computed(() => selectedScenario.value?.message ?? '')
 const requestPreview = computed(() => requestBodyPreview(selectedScenario.value))
 const busy = computed(() => catalogLoading.value || sessionLoading.value || running.value || resetting.value)
+const canRetry = computed(() => Boolean(lastSubmissionRequest.value))
+const acceptedResult = computed(() => {
+  const trace = lastExecution.value?.trace
+  return trace?.finalOutcome === 'Accepted' && trace?.commitStatus === 'Committed' ? trace : null
+})
 
 onMounted(async () => {
   try {
@@ -55,6 +71,8 @@ async function startSession() {
   order.value = null
   returnCases.value = []
   lastExecution.value = null
+  submissionWorkflow.clear()
+  lastSubmissionRequest.value = null
   emit('execution', undefined)
 
   try {
@@ -72,20 +90,15 @@ async function startSession() {
   }
 }
 
-async function run() {
-  if (!session.value || !order.value) return
-  running.value = true
+/** @param {Readonly<{ sessionId: string, orderId: string, submissionKey: string, message: string }>} request */
+async function executeRequest(request) {
+  if (!session.value || !order.value) return undefined
   error.value = ''
   const activeSession = session.value
   const beforeOrder = JSON.parse(JSON.stringify(order.value))
 
   try {
-    const trace = await runReplay(fetch, apiBase, {
-      sessionId: activeSession.sessionId,
-      orderId: activeSession.order.id,
-      submissionKey: crypto.randomUUID(),
-      message: message.value,
-    })
+    const trace = await runReplay(fetch, apiBase, request)
     const [afterOrder, cases] = await Promise.all([
       getOrder(fetch, apiBase, activeSession.sessionId, activeSession.order.id),
       getReturnCases(fetch, apiBase, activeSession.sessionId),
@@ -100,11 +113,29 @@ async function run() {
       quantityChanges: quantityChanges(beforeOrder, afterOrder),
     }
     emit('execution', lastExecution.value)
+    return lastExecution.value
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'The Replay run could not be completed.'
-  } finally {
-    running.value = false
+    return undefined
   }
+}
+
+async function submitNew() {
+  if (running.value || !session.value || !order.value) return
+  try {
+    await submissionWorkflow.submitNew({
+      sessionId: session.value.sessionId,
+      orderId: session.value.order.id,
+      message: message.value,
+    })
+  } finally {
+    lastSubmissionRequest.value = submissionWorkflow.lastRequest
+  }
+}
+
+async function retrySame() {
+  if (running.value || !submissionWorkflow.lastRequest) return
+  await submissionWorkflow.retrySame()
 }
 
 async function reset() {
@@ -117,6 +148,8 @@ async function reset() {
     order.value = restored.order
     returnCases.value = await getReturnCases(fetch, apiBase, restored.sessionId)
     lastExecution.value = null
+    submissionWorkflow.clear()
+    lastSubmissionRequest.value = null
     emit('execution', undefined)
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'The fictional demo session could not be reset.'
@@ -194,12 +227,25 @@ async function reset() {
       </div>
     </section>
 
-    <div class="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
-      <button type="button" :disabled="busy || !session || !order" class="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35" @click="run">
-        {{ running ? 'Running guarded pipeline…' : lastExecution ? 'Run again in this session' : 'Run Replay pipeline' }}
+    <div class="mt-5 grid gap-3 sm:grid-cols-2">
+      <button type="button" :disabled="busy || !session || !order" class="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35" @click="submitNew">
+        {{ running ? 'Processing request…' : 'Submit new return' }}
       </button>
-      <div class="rounded-2xl border border-black/10 px-4 py-2 text-xs text-ink/50"><span class="block font-semibold text-ink/65">Mode</span>Replay <span aria-label="Live mode unavailable">· Live unavailable</span></div>
+      <button type="button" :disabled="busy || !session || !order || !canRetry" class="rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-35" @click="retrySame">
+        Retry same request
+      </button>
     </div>
+    <p class="mt-2 text-xs leading-5 text-ink/45">A new return gets a new submission key. Retry reuses the previous key and exact payload so the backend can return its original result.</p>
+
+    <div v-if="acceptedResult" class="mt-4 rounded-2xl border border-moss/15 bg-limewash/45 px-4 py-3" aria-live="polite">
+      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-moss/65">Backend committed result</p>
+      <dl class="mt-2 grid gap-2 text-xs text-ink/60 sm:grid-cols-2">
+        <div><dt>Run ID</dt><dd class="mt-0.5 break-all font-semibold text-ink">{{ acceptedResult.runId }}</dd></div>
+        <div><dt>Return Case ID</dt><dd class="mt-0.5 break-all font-semibold text-ink">{{ acceptedResult.createdReturnCaseId }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-black/10 px-4 py-2 text-xs text-ink/50"><span class="font-semibold text-ink/65">Mode</span> · Replay <span aria-label="Live mode unavailable">· Live unavailable</span></div>
 
     <p v-if="error" role="alert" class="mt-4 rounded-xl bg-coral/10 px-4 py-3 text-sm text-coral">{{ error }}</p>
     <p class="mt-4 text-xs leading-5 text-ink/45">Simulation only · no refund, shipment, payment, or legal eligibility decision · Accepted means only that a fictional Return Case committed</p>

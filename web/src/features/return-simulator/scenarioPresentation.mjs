@@ -3,7 +3,7 @@ export function requestBodyPreview(scenario) {
   return JSON.stringify(
     {
       selectedOrderId: '<created from this order on Run>',
-      submissionKey: '<generated on Run>',
+      submissionKey: '<generated for a new submission; reused for retry>',
       message: scenario?.message ?? '',
       mode: 'Replay',
     },

@@ -1,7 +1,7 @@
 # Stage AI-4 report
 
 **Status:** Complete locally on `feature/ai-4-portfolio-experience` for owner review  
-**Date:** 2026-11-17
+**Date:** 2026-11-18
 
 ## Scope delivered
 
@@ -12,6 +12,8 @@
 - Separately explains committed acceptance, clarification, business rejection/manual review, and technical failure. The UI states that no refund, shipment, payment, legal determination, or external AI call occurs.
 - Added accessible loading, empty, reset and HTTP-error states plus responsive layouts and links to the public business-rule, architecture-decision and test documentation.
 - Added lightweight frontend tests for persistent-session API behavior, session-scoped reset, safe API reason-code errors, actual quantity comparison, outcome categories and existing rule/empty-state presentation.
+- Refined the simulator actions into **Submit new return** and **Retry same request**. Only the new-return action creates a submission key; retry retains the same immutable session/order/key/message request and delegates idempotency to the existing AI-3 backend behavior.
+- Blocks both actions while a request is in flight, displays the actual backend `RunId` and `CreatedReturnCaseId` for a committed acceptance, and keeps a distinct new-return path available while authoritative capacity remains.
 - Updated the README from AI-3 to the implemented AI-4 experience. No backend business behavior, Live provider, deployment, payment, shipping, scheduling or external service was added.
 
 ## Acceptance evidence
@@ -22,6 +24,8 @@
 - S06 browser smoke: returned `ManualReview / Not committed`; the proposal visibly contained `oi-fake-999`, grounding failed with `ITEM_ID_NOT_IN_CONTEXT`, later stages were skipped, availability stayed `2 -> 2`, and no case ID was shown.
 - The responsive browser view kept simulator controls and inspector content readable in a narrow single-column layout.
 - Actual API/browser behavior was used for the smoke evidence; no mocked frontend success state was used.
+- Frontend workflow tests prove that retry sends the identical request object and key, duplicate in-flight clicks execute once, an accepted retry retains the same Run ID / Return Case ID without reducing availability again, and a later new submission receives a new key and can consume another available unit.
+- The existing real-SQLite `AtomicReturnApiTests` remain the backend authority: S04 returns the original Run ID / Return Case ID with no second allocation, while S05 permits another independent case for a distinct submission key when capacity remains. No new idempotency mechanism was introduced.
 
 ## Commands and actual results
 
@@ -32,19 +36,23 @@
 - From `web`, `npm.cmd run test` -> 10 passed, 0 failed.
 - From `web`, `npm.cmd run lint` -> passed with 0 warnings/errors.
 - From `web`, `npm.cmd run build` -> passed TypeScript checks and Vite production build; 17 modules transformed.
+- 2026-11-18 refinement: from `web`, `npm.cmd run test` -> 13 passed, 0 failed, including 3 submission-workflow tests.
+- 2026-11-18 refinement: from `web`, `npm.cmd run lint` -> passed with 0 warnings/errors.
+- 2026-11-18 refinement: from `web`, `npm.cmd run build` -> passed TypeScript checks and Vite production build; 18 modules transformed. One concurrent build attempt failed during Vite HTML emission; an immediate isolated rerun passed, so the recorded result is the non-concurrent build.
+- 2026-11-18 refinement: `dotnet test ReturnFlow.slnx --filter "FullyQualifiedName~AtomicReturnApiTests" --verbosity minimal` -> 8 real-SQLite integration tests passed, 0 failed and 0 skipped. The unit-test project reported no tests matching that integration-test filter, as expected.
 - Browser-level smoke used the locally running Vite app and .NET API with no external calls. It verified S01 twice in one session, Reset, S02 and S06. The first attempt exposed a Vue reactive-proxy clone error before the API request; the clone was corrected and every smoke flow then passed.
 - `git diff --check` -> no whitespace errors; Git printed only the repository's existing LF-to-CRLF checkout notices.
 
 ## Changed files
 
-- Simulator: `web/src/features/return-simulator/ReturnSimulator.vue`, new `demoApi.mjs` and `demoApi.test.mjs`, plus scenario presentation helpers/tests.
+- Simulator: `web/src/features/return-simulator/ReturnSimulator.vue`, `demoApi.mjs` and `demoApi.test.mjs`, scenario presentation helpers/tests, and new `submissionWorkflow.mjs` / `submissionWorkflow.test.mjs`.
 - Inspector: `web/src/features/ai-inspector/AiExecutionInspector.vue` and trace presentation helpers/tests.
 - Shell/documentation: `web/src/App.vue`, `README.md`, and this report.
 
 ## Known limitations and next stage not implemented
 
 - Replay remains exact fixture playback; arbitrary visitor text is intentionally unsupported without a future Live adapter.
-- A new submission key is generated for each Run button click. Backend idempotency behavior remains fully covered by AI-3 integration tests but is not exposed as a dedicated visitor control.
+- Retry state is intentionally kept only for the current browser session; selecting another scenario or resetting the demo clears it together with the inspector. Durable idempotency remains owned by the AI-3 backend records.
 - The public rule/document links target the curated `main` locations and resolve to the promoted content only after the owner reviews and promotes it.
 - SQLite remains a single-writer, single-instance demo store. Session persistence across redeploys still depends on configured persistent storage.
 - No refund, shipment, cancellation execution, legal policy decision, worker, deployment, cloud resource, paid service, or Live provider was added.
